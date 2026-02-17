@@ -1,0 +1,10 @@
+# Allow all bots
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://islamic-app.vercel.app/sitemap.xml
+
+# Disallow admin pages
+Disallow: /admin
+Disallow: /private

@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1a3f54" />
+    <meta name="description" content="Complete Islamic Web Application with Prayer Times, Quran, Duas in Bangla" />
+    <meta name="keywords" content="islamic, prayer times, quran, bangla, duas, ramadan" />
+    <meta name="author" content="Islamic App" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="ইসলামিক অ্যাপ - সম্পূর্ণ ইসলামিক অ্যাপ্লিকেশন" />
+    <meta property="og:description" content="নামাজের সময়, কোরআন, দোয়া, কিবলা দিকনির্দেশনা সহ সম্পূর্ণ ইসলামিক অ্যাপ" />
+    <meta property="og:image" content="%PUBLIC_URL%/og-image.png" />
+    <meta property="og:url" content="https://islamic-app.vercel.app" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ইসলামিক অ্যাপ" />
+    <meta name="twitter:description" content="সম্পূর্ণ ইসলামিক অ্যাপ্লিকেশন" />
+    <meta name="twitter:image" content="%PUBLIC_URL%/og-image.png" />
+    
+    <!-- PWA -->
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ইসলামিক অ্যাপ" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/icon-192.png" />
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <title>ইসলামিক অ্যাপ - সম্পূর্ণ ইসলামিক অ্যাপ্লিকেশন</title>
+</head>
+<body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(reg => console.log('✅ Service Worker registered:', reg))
+                    .catch(err => console.log('❌ Service Worker registration failed:', err));
+            });
+        }
+    </script>
+</body>
+</html>

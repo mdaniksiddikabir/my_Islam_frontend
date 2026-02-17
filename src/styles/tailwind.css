@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+  }
+  
+  .text-shadow-lg {
+    text-shadow: 4px 4px 8px rgba(0,0,0,0.2);
+  }
+  
+  .glass-effect {
+    backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  
+  .glass-effect-dark {
+    backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.3);
+  }
+  
+  .border-gradient {
+    border-image: linear-gradient(135deg, #d4af37, #f5e6b3) 1;
+  }
+  
+  .animation-delay-100 {
+    animation-delay: 100ms;
+  }
+  
+  .animation-delay-200 {
+    animation-delay: 200ms;
+  }
+  
+  .animation-delay-300 {
+    animation-delay: 300ms;
+  }
+  
+  .animation-delay-500 {
+    animation-delay: 500ms;
+  }
+  
+  .animation-delay-1000 {
+    animation-delay: 1000ms;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-[#d4af37] text-[#1a3f54] rounded-lg hover:bg-[#c4a037] transition font-bold disabled:opacity-50;
+  }
+  
+  .btn-secondary {
+    @apply px-6 py-3 bg-white/10 hover:bg-white/20 rounded-lg transition font-bold;
+  }
+  
+  .input-primary {
+    @apply w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#d4af37] focus:outline-none;
+  }
+  
+  .card-hover {
+    @apply transition-all hover:scale-[1.02] hover:border-[#d4af37];
+  }
+}

@@ -1,0 +1,176 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply m-0 p-0 box-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply font-sans overflow-x-hidden;
+    font-family: 'Inter', sans-serif;
+  }
+
+  body.bangla {
+    font-family: 'Hind Siliguri', sans-serif;
+  }
+
+  /* Dark mode by default */
+  :root {
+    --bg-primary: #0a2a3b;
+    --bg-secondary: #1a3f54;
+    --text-primary: #ffffff;
+    --text-secondary: #e0e0e0;
+    --accent: #d4af37;
+    --glass-bg: rgba(255, 255, 255, 0.08);
+    --glass-border: rgba(255, 255, 255, 0.1);
+  }
+
+  .light {
+    --bg-primary: #f0f4f8;
+    --bg-secondary: #e0e7ff;
+    --text-primary: #1a2f3f;
+    --text-secondary: #2c3e50;
+    --accent: #b8860b;
+    --glass-bg: rgba(0, 0, 0, 0.05);
+    --glass-border: rgba(0, 0, 0, 0.1);
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-xl;
+  }
+
+  .glass-nav {
+    @apply bg-[#1a3f54]/80 backdrop-blur-lg border-b border-white/10;
+  }
+
+  .prayer-card {
+    @apply bg-white/5 rounded-xl p-4 text-center border border-white/10 hover:border-[#d4af37] transition-all;
+  }
+
+  .prayer-card.current {
+    @apply border-2 border-[#d4af37] animate-pulse;
+  }
+
+  .verse-card {
+    @apply bg-gradient-to-r from-[#d4af37]/10 to-white/5 border-r-4 border-[#d4af37] rounded-xl p-6;
+  }
+
+  .progress-bar {
+    @apply w-full h-2 bg-white/10 rounded-full overflow-hidden;
+  }
+
+  .progress-fill {
+    @apply h-full bg-gradient-to-r from-[#d4af37] to-[#f5e6b3] transition-all duration-300;
+  }
+
+  .nav-item {
+    @apply flex items-center gap-2 px-4 py-2 rounded-full text-white/80 hover:text-[#d4af37] hover:bg-[#d4af37]/20 transition-all cursor-pointer;
+  }
+
+  .nav-item.active {
+    @apply bg-[#d4af37]/20 text-[#d4af37];
+  }
+
+  .lang-switch {
+    @apply flex gap-1 bg-white/10 p-1 rounded-full;
+  }
+
+  .lang-btn {
+    @apply px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer;
+  }
+
+  .lang-btn.active {
+    @apply bg-[#d4af37] text-[#1a3f54];
+  }
+
+  /* Animations */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  .pulse {
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes slideIn {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+
+  .slide-in {
+    animation: slideIn 0.3s ease-out;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212, 175, 55, 0.5);
+}
+
+/* Loading Spinner */
+.spinner {
+  border: 3px solid rgba(212, 175, 55, 0.1);
+  border-top-color: #d4af37;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+/* Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, #d4af37, #f5e6b3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Arabic Font */
+.font-arabic {
+  font-family: 'Amiri', serif;
+}
+
+/* Bangla Font */
+.font-bangla {
+  font-family: 'Hind Siliguri', sans-serif;
+}

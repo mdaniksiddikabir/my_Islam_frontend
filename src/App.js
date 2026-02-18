@@ -12,7 +12,6 @@ import QuranPage from './pages/QuranPage';
 import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
-import DebugPage from './pages/DebugPage'; // ← ADDED
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -46,7 +45,6 @@ function App() {
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/duas" element={<DuaPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="/debug" element={<DebugPage />} /> {/* ← ADDED */}
                 </Routes>
               </main>
               <Footer />

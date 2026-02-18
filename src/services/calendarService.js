@@ -31,7 +31,7 @@ export const getGregorianCalendar = async (year, month) => {
 // Get Islamic events for a specific year
 export const getIslamicEvents = async (year) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/calendar/events`, {
+    const response = await axios.get(`${API_BASE_URL}/calendar/events`, {
       params: { year }
     });
     return response.data.data;

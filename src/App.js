@@ -12,6 +12,7 @@ import QuranPage from './pages/QuranPage';
 import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
+import Login from './components/user/Login';
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -39,6 +40,7 @@ function App() {
               <main className="pt-20 pb-10 px-4 max-w-7xl mx-auto">
                 <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/login" element={<login />} />
                   <Route path="/prayer" element={<PrayerPage />} />
                   <Route path="/qibla" element={<QiblaPage />} />
                   <Route path="/quran" element={<QuranPage />} />

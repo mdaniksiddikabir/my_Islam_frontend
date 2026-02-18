@@ -1,7 +1,7 @@
 import api from './api';
 
 // =====================================================
-// QURAN SERVICE - COMPLETE WITH ALL FUNCTIONS
+// QURAN SERVICE - WITH /api PREFIX
 // =====================================================
 
 /**
@@ -9,13 +9,13 @@ import api from './api';
  */
 export const getSurahs = async (language = 'en') => {
   try {
-    const response = await api.get('/quran/surahs', {
+    // ✅ ADDED /api
+    const response = await api.get('/api/quran/surahs', {
       params: { language }
     });
     return response.data.data;
   } catch (error) {
     console.error('Error fetching surahs:', error);
-    // Return fallback data
     return [
       { id: 1, name: 'الفاتحة', translation: 'Al-Fatihah', totalVerses: 7 },
       { id: 2, name: 'البقرة', translation: 'Al-Baqarah', totalVerses: 286 }
@@ -28,7 +28,8 @@ export const getSurahs = async (language = 'en') => {
  */
 export const getVerses = async (surahId, language = 'en') => {
   try {
-    const response = await api.get(`/quran/surah/${surahId}/verses`, {
+    // ✅ ADDED /api
+    const response = await api.get(`/api/quran/surah/${surahId}/verses`, {
       params: { language }
     });
     return response.data.data;
@@ -39,17 +40,17 @@ export const getVerses = async (surahId, language = 'en') => {
 };
 
 /**
- * ✅ FIXED: Get daily verse (THIS WAS MISSING)
+ * Get daily verse
  */
 export const getDailyVerse = async (language = 'bn') => {
   try {
-    const response = await api.get('/quran/daily', {
+    // ✅ ADDED /api
+    const response = await api.get('/api/quran/daily', {
       params: { language }
     });
     return response.data.data;
   } catch (error) {
     console.error('Error fetching daily verse:', error);
-    // Return fallback data so UI doesn't crash
     return {
       arabic: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ",
       translation: language === 'bn' 
@@ -66,7 +67,8 @@ export const getDailyVerse = async (language = 'bn') => {
  */
 export const getVerse = async (surahId, verseId, language = 'en') => {
   try {
-    const response = await api.get(`/quran/verse/${surahId}/${verseId}`, {
+    // ✅ ADDED /api
+    const response = await api.get(`/api/quran/verse/${surahId}/${verseId}`, {
       params: { language }
     });
     return response.data.data;
@@ -81,7 +83,8 @@ export const getVerse = async (surahId, verseId, language = 'en') => {
  */
 export const getTafsir = async (surahId, verseId, language = 'bn') => {
   try {
-    const response = await api.get(`/quran/tafsir/${surahId}/${verseId}`, {
+    // ✅ ADDED /api
+    const response = await api.get(`/api/quran/tafsir/${surahId}/${verseId}`, {
       params: { language }
     });
     return response.data.data;
@@ -96,7 +99,8 @@ export const getTafsir = async (surahId, verseId, language = 'bn') => {
  */
 export const searchQuran = async (query, language = 'en') => {
   try {
-    const response = await api.get('/quran/search', {
+    // ✅ ADDED /api
+    const response = await api.get('/api/quran/search', {
       params: { q: query, language }
     });
     return response.data.data;

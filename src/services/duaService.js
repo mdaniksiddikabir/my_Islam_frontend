@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 // Get duas by category
 export const getDuasByCategory = async (category, language = 'bn') => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/duas/category/${category}`, {
+    const response = await axios.get(`${API_BASE_URL}/api/data/duas/category/${category}`, {
       params: { language }
     });
     return response.data.data;
@@ -18,7 +18,7 @@ export const getDuasByCategory = async (category, language = 'bn') => {
 // Get daily dua
 export const getDailyDua = async (language = 'bn') => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/duas/daily`, {
+    const response = await axios.get(`${API_BASE_URL}/api/data/duas/daily`, {
       params: { language }
     });
     return response.data.data;
@@ -31,7 +31,7 @@ export const getDailyDua = async (language = 'bn') => {
 // Search duas
 export const searchDuas = async (query, language = 'bn') => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/duas/search`, {
+    const response = await axios.get(`${API_BASE_URL}/api/data/duas/search`, {
       params: { q: query, language }
     });
     return response.data.data;
@@ -44,7 +44,7 @@ export const searchDuas = async (query, language = 'bn') => {
 // Get all dua categories
 export const getDuaCategories = async (language = 'bn') => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/duas/categories`, {
+    const response = await axios.get(`${API_BASE_URL}/api/data/duas/categories`, {
       params: { language }
     });
     return response.data.data;

@@ -6,27 +6,27 @@ export const registerPushNotification = async (subscription) => {
 };
 
 export const unregisterPushNotification = async () => {
-  const response = await api.post('/notifications/unregister');
+  const response = await api.post('/api/notifications/unregister');
   return response.data;
 };
 
 export const sendTestNotification = async () => {
-  const response = await api.post('/notifications/test');
+  const response = await api.post('/api/notifications/test');
   return response.data;
 };
 
 export const getNotificationSettings = async () => {
-  const response = await api.get('/notifications/settings');
+  const response = await api.get('/api/notifications/settings');
   return response.data.data;
 };
 
 export const updateNotificationSettings = async (settings) => {
-  const response = await api.put('/notifications/settings', settings);
+  const response = await api.put('/api/notifications/settings', settings);
   return response.data;
 };
 
 export const schedulePrayerReminder = async (prayer, time) => {
-  const response = await api.post('/notifications/schedule', {
+  const response = await api.post('/api/notifications/schedule', {
     type: 'prayer',
     prayer,
     time
@@ -35,7 +35,7 @@ export const schedulePrayerReminder = async (prayer, time) => {
 };
 
 export const cancelAllReminders = async () => {
-  const response = await api.delete('/notifications/all');
+  const response = await api.delete('/api/notifications/all');
   return response.data;
 };
 

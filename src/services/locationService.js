@@ -55,18 +55,19 @@ export const reverseGeocode = async (lat, lng) => {
   };
 };
 
+// ✅ FIXED: Added /api prefix to these functions
 export const saveFavoriteCity = async (cityData) => {
-  const response = await api.post('/users/favorites', cityData);
+  const response = await api.post('/api/users/favorites', cityData);  // Added /api
   return response.data;
 };
 
 export const getFavoriteCities = async () => {
-  const response = await api.get('/users/favorites');
+  const response = await api.get('/api/users/favorites');  // Added /api
   return response.data.data;
 };
 
 export const removeFavoriteCity = async (cityId) => {
-  const response = await api.delete(`/users/favorites/${cityId}`);
+  const response = await api.delete(`/api/users/favorites/${cityId}`);  // Added /api
   return response.data;
 };
 

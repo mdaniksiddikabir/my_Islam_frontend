@@ -216,6 +216,10 @@ export const enTranslations = {
     conversion: 'Date conversion failed',
     cityNotFound: 'City not found',
     searchFailed: 'Search failed, please try again'
+  },
+  // ... after errors section
+  footer: {
+    rights: 'All rights reserved'
   }
 };
 
@@ -437,5 +441,9 @@ export const bnTranslations = {
     conversion: 'তারিখ রূপান্তর ব্যর্থ',
     cityNotFound: 'শহর পাওয়া যায়নি',
     searchFailed: 'অনুসন্ধান ব্যর্থ, আবার চেষ্টা করুন'
-  }
+  },
+  // ... after errors section
+  footer: {
+   rights: 'সর্বস্বত্ব সংরক্ষিত'
+}
 };

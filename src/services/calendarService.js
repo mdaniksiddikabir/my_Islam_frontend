@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 // Get Hijri calendar for a specific month/year
 export const getHijriCalendar = async (year, month) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/calendar/hijri`, {
+    const response = await axios.get(`${API_BASE_URL}/api/calendar/hijri`, {
       params: { year, month }
     });
     return response.data.data;
@@ -18,7 +18,7 @@ export const getHijriCalendar = async (year, month) => {
 // Get Gregorian calendar for a specific month/year
 export const getGregorianCalendar = async (year, month) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/calendar/gregorian`, {
+    const response = await axios.get(`${API_BASE_URL}/api/calendar/gregorian`, {
       params: { year, month }
     });
     return response.data.data;
@@ -31,7 +31,7 @@ export const getGregorianCalendar = async (year, month) => {
 // Get Islamic events for a specific year
 export const getIslamicEvents = async (year) => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/calendar/events`, {
+    const response = await axios.get(`${API_BASE_URL}/api/calendar/events`, {
       params: { year }
     });
     return response.data.data;
@@ -44,7 +44,7 @@ export const getIslamicEvents = async (year) => {
 // Convert date between Hijri and Gregorian
 export const convertDate = async (from, to, date) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/calendar/convert`, {
+    const response = await axios.post(`${API_BASE_URL}/api/calendar/convert`, {
       from,
       to,
       date
@@ -59,7 +59,7 @@ export const convertDate = async (from, to, date) => {
 // Get today's Hijri date
 export const getTodayHijri = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/calendar/today-hijri`);
+    const response = await axios.get(`${API_BASE_URL}/api/calendar/today-hijri`);
     return response.data.data;
   } catch (error) {
     console.error('Error fetching today\'s Hijri date:', error);

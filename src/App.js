@@ -4,8 +4,8 @@ import { QueryClient, QueryClientProvider } from 'react-query';
 import { Toaster } from 'react-hot-toast';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
-import { ThemeProvider } from './context/ThemeProvider'; // If you have this
-import { SettingsProvider } from './context/SettingsContext'; // If you have this
+import { ThemeProvider } from './context/ThemeContext';
+import { SettingsProvider } from './context/SettingsContext'; // This uses Auth
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -42,10 +42,14 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <LanguageProvider>      {/* MUST be before AuthProvider if Auth uses Language */}
-          <AuthProvider>         {/* AuthProvider wraps everything that needs auth */}
-            <ThemeProvider>      {/* If you have theme */}
-              <SettingsProvider> {/* If you have settings */}
+        {/* LanguageProvider first - independent */}
+        <LanguageProvider>
+          {/* AuthProvider second - needed by SettingsProvider */}
+          <AuthProvider>
+            {/* ThemeProvider third - independent but can be anywhere */}
+            <ThemeProvider>
+              {/* SettingsProvider fourth - depends on AuthProvider */}
+              <SettingsProvider>
                 <Router>
                   <div className="min-h-screen bg-gradient-to-br from-[#0a2a3b] to-[#1a3f54] text-white">
                     <Navbar />
@@ -64,12 +68,15 @@ function App() {
                         <Route path="/duas" element={<DuaPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         
-                        {/* Protected Routes */}
-                        <Route path="/profile" element={
-                          <ProtectedRoute>
-                            <ProfilePage />
-                          </ProtectedRoute>
-                        } />
+                        {/* Protected Route */}
+                        <Route 
+                          path="/profile" 
+                          element={
+                            <ProtectedRoute>
+                              <ProfilePage />
+                            </ProtectedRoute>
+                          } 
+                        />
                         
                         {/* 404 Route */}
                         <Route path="*" element={<NotFoundPage />} />

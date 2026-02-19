@@ -5,7 +5,9 @@ import { getSettings, updateSettings, exportData, importData } from '../services
 import toast from 'react-hot-toast';
 
 const SettingsPage = () => {
-  const { t, currentLanguage, changeLanguage } = useLanguage();
+  // Fix: Use correct function names from context
+  const { t, language: currentLanguage, setLanguage } = useLanguage();
+  
   const [settings, setSettings] = useState({
     language: currentLanguage,
     theme: 'dark',
@@ -27,6 +29,11 @@ const SettingsPage = () => {
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // Update settings when language changes from context
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, language: currentLanguage }));
+  }, [currentLanguage]);
 
   const loadSettings = async () => {
     try {
@@ -100,7 +107,7 @@ const SettingsPage = () => {
     >
       {/* Header */}
       <div className="glass p-6">
-        <h1 className="text-3xl font-bold mb-2 text-[#d4af37]">
+        <h1 className="text-3xl font-bold mb-2 text-[#d4af37] flex items-center">
           <i className="fas fa-cog mr-3"></i>
           {t('settings.title')}
         </h1>
@@ -116,10 +123,7 @@ const SettingsPage = () => {
         
         <div className="grid grid-cols-2 gap-4">
           <button
-            onClick={() => {
-              setSettings({...settings, language: 'en'});
-              changeLanguage('en');
-            }}
+            onClick={() => setLanguage('en')} // Fixed: use setLanguage
             className={`p-4 rounded-lg transition ${
               settings.language === 'en'
                 ? 'bg-[#d4af37] text-[#1a3f54]'
@@ -128,13 +132,13 @@ const SettingsPage = () => {
           >
             <span className="text-2xl mb-2 block">🇬🇧</span>
             <span>English</span>
+            {settings.language === 'en' && (
+              <i className="fas fa-check ml-2"></i>
+            )}
           </button>
           
           <button
-            onClick={() => {
-              setSettings({...settings, language: 'bn'});
-              changeLanguage('bn');
-            }}
+            onClick={() => setLanguage('bn')} // Fixed: use setLanguage
             className={`p-4 rounded-lg transition ${
               settings.language === 'bn'
                 ? 'bg-[#d4af37] text-[#1a3f54]'
@@ -143,10 +147,21 @@ const SettingsPage = () => {
           >
             <span className="text-2xl mb-2 block">🇧🇩</span>
             <span>বাংলা</span>
+            {settings.language === 'bn' && (
+              <i className="fas fa-check ml-2"></i>
+            )}
           </button>
         </div>
+
+        {/* Language description */}
+        <p className="text-sm text-white/50 mt-4 text-center">
+          {settings.language === 'bn' 
+            ? 'বর্তমান ভাষা: বাংলা' 
+            : 'Current language: English'}
+        </p>
       </div>
 
+      {/* Rest of your component remains the same */}
       {/* Theme Settings */}
       <div className="glass p-6">
         <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">

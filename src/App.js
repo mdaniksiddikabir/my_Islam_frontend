@@ -13,25 +13,28 @@ import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import ProfilePage from './pages/ProfilePage';           // ✅ ADD THIS
+import NotFoundPage from './pages/NotFoundPage';         // ✅ ADD THIS
 
 // Components
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
-import ErrorBoundary from './components/common/ErrorBoundary'; // ← ADDED
+import ErrorBoundary from './components/common/ErrorBoundary';
+import ProtectedRoute from './components/common/ProtectedRoute'; // ✅ ADD THIS
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000,
     },
   },
 });
 
 function App() {
   return (
-    <ErrorBoundary> {/* ← ADDED */}
+    <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <LanguageProvider>
           <Router>
@@ -41,12 +44,18 @@ function App() {
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/login" element={<LoginPage />} />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  } />                                        {/* ✅ ADDED */}
                   <Route path="/prayer" element={<PrayerPage />} />
                   <Route path="/qibla" element={<QiblaPage />} />
                   <Route path="/quran" element={<QuranPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/duas" element={<DuaPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="*" element={<NotFoundPage />} />   {/* ✅ ADDED */}
                 </Routes>
               </main>
               <Footer />

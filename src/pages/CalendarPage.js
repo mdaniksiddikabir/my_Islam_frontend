@@ -5,7 +5,7 @@ import {
   getHijriCalendar, 
   getGregorianCalendar, 
   getIslamicEvents,
-  getTodayHijri,
+  getCurrentHijri,
   convertDate 
 } from '../services/calendarService';
 import Loader from '../components/common/Loader';

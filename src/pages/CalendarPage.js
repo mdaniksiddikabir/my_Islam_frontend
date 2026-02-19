@@ -5,10 +5,15 @@ import {
   getHijriCalendar, 
   getGregorianCalendar, 
   getIslamicEvents,
+  getTodayHijri,
   convertDate 
 } from '../services/calendarService';
 import Loader from '../components/common/Loader';
 import toast from 'react-hot-toast';
+import IslamicCalendar from '../components/calendar/IslamicCalendar';
+import GregorianCalendar from '../components/calendar/GregorianCalendar';
+import DateConverter from '../components/calendar/DateConverter';
+import EventList from '../components/calendar/EventList';
 
 const CalendarPage = () => {
   const { t, currentLanguage } = useLanguage();
@@ -21,8 +26,12 @@ const CalendarPage = () => {
   const [events, setEvents] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
   const [showConverter, setShowConverter] = useState(false);
-  const [convertFrom, setConvertFrom] = useState('hijri');
-  const [convertTo, setConvertTo] = useState('gregorian');
+  const [todayHijri, setTodayHijri] = useState(null);
+  const [todayHijriError, setTodayHijriError] = useState(false);
+  
+  // Converter states
+  const [convertFrom, setConvertFrom] = useState('gregorian');
+  const [convertTo, setConvertTo] = useState('hijri');
   const [convertInput, setConvertInput] = useState({
     day: '',
     month: '',
@@ -62,10 +71,28 @@ const CalendarPage = () => {
     bn: ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহস্পতি', 'শুক্র', 'শনি']
   };
 
+  // Load today's Hijri date on mount (with error handling)
+  useEffect(() => {
+    fetchTodayHijri();
+  }, []);
+
+  // Load calendar data when date or type changes
   useEffect(() => {
     loadCalendarData();
     loadEvents();
   }, [currentDate, calendarType]);
+
+  const fetchTodayHijri = async () => {
+    try {
+      setTodayHijriError(false);
+      const data = await getTodayHijri();
+      setTodayHijri(data);
+    } catch (error) {
+      console.warn('Today\'s Hijri date API not available:', error);
+      setTodayHijriError(true);
+      // Don't show error toast as this is not critical
+    }
+  };
 
   const loadCalendarData = async () => {
     try {
@@ -89,7 +116,7 @@ const CalendarPage = () => {
       
     } catch (error) {
       console.error('Error loading calendar:', error);
-      toast.error(t('errors.calendar'));
+      toast.error(t('errors.calendar') || 'Failed to load calendar');
     } finally {
       setLoading(false);
     }
@@ -97,10 +124,15 @@ const CalendarPage = () => {
 
   const loadEvents = async () => {
     try {
-      const data = await getIslamicEvents(currentDate.getFullYear());
+      const year = calendarType === 'hijri' 
+        ? (hijriDate?.year || currentDate.getFullYear())
+        : currentDate.getFullYear();
+      
+      const data = await getIslamicEvents(year);
       setEvents(data);
     } catch (error) {
       console.error('Error loading events:', error);
+      // Don't show error toast for events, just log it
     }
   };
 
@@ -108,7 +140,7 @@ const CalendarPage = () => {
     if (!data) return;
 
     const days = [];
-    const firstDay = data.firstDayOfWeek || 1; // 1 = Monday
+    const firstDay = data.firstDay || 0;
     const totalDays = data.daysInMonth || 30;
 
     // Add empty cells for days before month start
@@ -118,22 +150,18 @@ const CalendarPage = () => {
 
     // Add days of month
     for (let d = 1; d <= totalDays; d++) {
-      const isToday = d === data.currentDay && 
-                     data.month === data.currentMonth && 
-                     data.year === data.currentYear;
+      const dayData = data.days?.find(day => day.day === d) || {};
       
-      const dayEvents = events.filter(event => 
-        event.hijriDay === d && 
-        event.hijriMonth === data.month
-      );
+      const isToday = d === data.currentDay && 
+                     data.month === (new Date().getMonth() + 1);
 
       days.push({
         day: d,
         isToday,
-        events: dayEvents,
-        gregorian: data.gregorianDates?.[d],
-        isRamadan: data.month === 9, // Ramadan month
-        isSpecial: [1, 10, 13, 15, 27].includes(d) // Special days
+        events: dayData.events || [],
+        gregorian: dayData.gregorian,
+        isRamadan: data.month === 9,
+        isSpecial: dayData.isSpecial || false
       });
     }
 
@@ -144,8 +172,8 @@ const CalendarPage = () => {
     if (!data) return;
 
     const days = [];
-    const firstDay = new Date(data.year, data.month - 1, 1).getDay();
-    const totalDays = new Date(data.year, data.month, 0).getDate();
+    const firstDay = data.firstDay || 0;
+    const totalDays = data.daysInMonth || 30;
 
     // Add empty cells for days before month start
     for (let i = 0; i < firstDay; i++) {
@@ -154,14 +182,17 @@ const CalendarPage = () => {
 
     // Add days of month
     for (let d = 1; d <= totalDays; d++) {
-      const isToday = d === new Date().getDate() && 
-                     data.month === new Date().getMonth() + 1 && 
+      const dayData = data.days?.find(day => day.day === d) || {};
+      
+      const isToday = d === data.currentDay && 
+                     data.month === (new Date().getMonth() + 1) &&
                      data.year === new Date().getFullYear();
 
       days.push({
         day: d,
         isToday,
-        weekday: new Date(data.year, data.month - 1, d).getDay()
+        weekday: dayData.weekday,
+        hijri: dayData.hijri
       });
     }
 
@@ -206,6 +237,11 @@ const CalendarPage = () => {
   };
 
   const handleConvert = async () => {
+    if (!convertInput.day || !convertInput.month || !convertInput.year) {
+      toast.error(t('errors.fillAllFields') || 'Please fill all fields');
+      return;
+    }
+
     try {
       const result = await convertDate(
         convertFrom,
@@ -213,13 +249,15 @@ const CalendarPage = () => {
         convertInput
       );
       setConvertResult(result);
-      toast.success(t('calendar.converted'));
+      toast.success(t('calendar.converted') || 'Date converted successfully');
     } catch (error) {
-      toast.error(t('errors.conversion'));
+      console.error('Conversion error:', error);
+      toast.error(t('errors.conversion') || 'Conversion failed');
     }
   };
 
   const formatNumber = (num) => {
+    if (!num && num !== 0) return '';
     if (currentLanguage === 'bn') {
       const banglaDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
       return num.toString().split('').map(d => banglaDigits[d] || d).join('');
@@ -237,11 +275,27 @@ const CalendarPage = () => {
     >
       {/* Header */}
       <div className="glass p-6">
-        <h1 className="text-3xl font-bold mb-2 text-[#d4af37]">
+        <h1 className="text-3xl font-bold mb-2 text-[#d4af37] flex items-center">
           <i className="fas fa-calendar-alt mr-3"></i>
-          {t('calendar.title')}
+          {t('calendar.title') || 'Islamic Calendar'}
         </h1>
-        <p className="text-white/70 font-bangla">{t('calendar.subtitle')}</p>
+        <p className="text-white/70">
+          {t('calendar.subtitle') || 'Track Islamic dates and events'}
+        </p>
+        
+        {/* Today's Hijri Date - Only show if available */}
+        {todayHijri && !todayHijriError && (
+          <div className="mt-4 inline-block bg-[#d4af37]/10 px-6 py-3 rounded-lg">
+            <p className="text-sm text-white/50 mb-1">
+              {currentLanguage === 'en' ? 'Today\'s Hijri Date:' : 
+               currentLanguage === 'bn' ? 'আজকের হিজরি তারিখ:' : 
+               'Today\'s Hijri Date:'}
+            </p>
+            <p className="text-xl font-bold text-[#d4af37]">
+              {todayHijri.day} {hijriMonths[currentLanguage][todayHijri.month - 1]} {todayHijri.year} AH
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Calendar Type Selector */}
@@ -256,7 +310,7 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-moon mr-2"></i>
-            {t('calendar.hijri')}
+            {t('calendar.hijri') || 'Hijri'}
           </button>
           <button
             onClick={() => setCalendarType('gregorian')}
@@ -267,7 +321,7 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-sun mr-2"></i>
-            {t('calendar.gregorian')}
+            {t('calendar.gregorian') || 'Gregorian'}
           </button>
         </div>
       </div>
@@ -277,7 +331,7 @@ const CalendarPage = () => {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={handlePrevMonth}
-            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
           >
             <i className="fas fa-chevron-left"></i>
           </button>
@@ -296,7 +350,7 @@ const CalendarPage = () => {
           
           <button
             onClick={handleNextMonth}
-            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition"
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
           >
             <i className="fas fa-chevron-right"></i>
           </button>
@@ -306,68 +360,30 @@ const CalendarPage = () => {
         <div className="flex justify-center mb-4">
           <button
             onClick={handleToday}
-            className="px-4 py-2 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 rounded-full transition"
+            className="px-4 py-2 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 rounded-full transition flex items-center gap-2"
           >
-            <i className="fas fa-calendar-check mr-2"></i>
-            {t('calendar.today')}
+            <i className="fas fa-calendar-check"></i>
+            {t('calendar.today') || 'Today'}
           </button>
         </div>
 
-        {/* Week Days */}
-        <div className="grid grid-cols-7 gap-2 mb-2">
-          {weekDays[currentLanguage].map((day, index) => (
-            <div key={index} className="text-center text-[#d4af37] font-bold py-2">
-              {day}
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-2">
-          {calendarDays.map((day, index) => (
-            <div
-              key={index}
-              onClick={() => handleDateClick(day)}
-              className={`
-                aspect-square p-2 rounded-lg cursor-pointer transition-all
-                ${day.empty ? 'opacity-0' : 'hover:bg-[#d4af37]/20'}
-                ${day.isToday ? 'border-2 border-[#d4af37] bg-[#d4af37]/10' : ''}
-                ${day.isRamadan ? 'bg-emerald-500/10' : ''}
-                ${day.isSpecial ? 'bg-purple-500/10' : ''}
-                ${day.events?.length > 0 ? 'relative' : ''}
-              `}
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold">{formatNumber(day.day)}</span>
-                
-                {/* Event indicators */}
-                {day.events?.length > 0 && (
-                  <div className="flex gap-1 mt-1">
-                    {day.events.map((event, i) => (
-                      <div
-                        key={i}
-                        className="w-1.5 h-1.5 rounded-full bg-[#d4af37]"
-                        title={event.name}
-                      />
-                    ))}
-                  </div>
-                )}
-                
-                {/* Special day indicators */}
-                {day.isSpecial && !day.events?.length && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1" />
-                )}
-              </div>
-
-              {/* Gregorian date for Hijri calendar */}
-              {calendarType === 'hijri' && day.gregorian && (
-                <div className="text-[10px] text-white/40 text-center mt-1">
-                  {formatNumber(day.gregorian)}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        {/* Calendar Display */}
+        {calendarType === 'hijri' ? (
+          <IslamicCalendar
+            year={hijriDate?.year || currentDate.getFullYear()}
+            month={hijriDate?.month || currentDate.getMonth() + 1}
+            days={calendarDays}
+            events={events}
+            onDayClick={handleDateClick}
+          />
+        ) : (
+          <GregorianCalendar
+            year={currentDate.getFullYear()}
+            month={currentDate.getMonth() + 1}
+            days={calendarDays}
+            onDayClick={handleDateClick}
+          />
+        )}
       </div>
 
       {/* Date Details */}
@@ -375,22 +391,26 @@ const CalendarPage = () => {
         <div className="glass p-6">
           <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">
             <i className="fas fa-info-circle mr-2"></i>
-            {t('calendar.dateDetails')}
+            {t('calendar.dateDetails') || 'Date Details'}
           </h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white/5 p-4 rounded-lg">
-              <p className="text-sm text-white/50 mb-1">{t('calendar.hijri')}</p>
+            <div className="bg-black/20 p-4 rounded-lg">
+              <p className="text-sm text-white/50 mb-1">
+                {t('calendar.hijri') || 'Hijri'}
+              </p>
               <p className="text-2xl font-arabic">
                 {formatNumber(selectedDate.day)} {hijriMonths[currentLanguage][selectedDate.month - 1]} {formatNumber(selectedDate.year)} AH
               </p>
             </div>
             
-            <div className="bg-white/5 p-4 rounded-lg">
-              <p className="text-sm text-white/50 mb-1">{t('calendar.gregorian')}</p>
+            <div className="bg-black/20 p-4 rounded-lg">
+              <p className="text-sm text-white/50 mb-1">
+                {t('calendar.gregorian') || 'Gregorian'}
+              </p>
               <p className="text-2xl">
                 {selectedDate.gregorian 
-                  ? `${formatNumber(selectedDate.gregorian)} ${gregorianMonths[currentLanguage][currentDate.getMonth()]} ${formatNumber(currentDate.getFullYear())}`
+                  ? selectedDate.gregorian
                   : `${formatNumber(selectedDate.day)} ${gregorianMonths[currentLanguage][currentDate.getMonth()]} ${formatNumber(currentDate.getFullYear())}`
                 }
               </p>
@@ -400,12 +420,18 @@ const CalendarPage = () => {
           {/* Events on this day */}
           {selectedDate.events?.length > 0 && (
             <div className="mt-4">
-              <h4 className="text-lg mb-2 text-[#d4af37]">{t('calendar.events')}</h4>
+              <h4 className="text-lg mb-2 text-[#d4af37]">
+                {t('calendar.events') || 'Events'}
+              </h4>
               <div className="space-y-2">
                 {selectedDate.events.map((event, index) => (
                   <div key={index} className="bg-[#d4af37]/10 p-3 rounded-lg">
-                    <p className="font-bold">{event.name}</p>
-                    <p className="text-sm text-white/70">{event.description}</p>
+                    <p className="font-bold">
+                      {currentLanguage === 'bn' ? event.nameBn : event.name}
+                    </p>
+                    <p className="text-sm text-white/70">
+                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -414,7 +440,7 @@ const CalendarPage = () => {
         </div>
       )}
 
-      {/* Date Converter */}
+      {/* Date Converter Toggle */}
       <div className="glass p-6">
         <button
           onClick={() => setShowConverter(!showConverter)}
@@ -422,89 +448,22 @@ const CalendarPage = () => {
         >
           <h3 className="text-xl text-[#d4af37] flex items-center">
             <i className="fas fa-exchange-alt mr-2"></i>
-            {t('calendar.dateConverter')}
+            {t('calendar.dateConverter') || 'Date Converter'}
           </h3>
           <i className={`fas fa-chevron-${showConverter ? 'up' : 'down'} text-[#d4af37]`}></i>
         </button>
 
         {showConverter && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            className="mt-4 space-y-4"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-white/50 mb-2">{t('calendar.convertFrom')}</label>
-                <select
-                  value={convertFrom}
-                  onChange={(e) => setConvertFrom(e.target.value)}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg"
-                >
-                  <option value="hijri">{t('calendar.hijri')}</option>
-                  <option value="gregorian">{t('calendar.gregorian')}</option>
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm text-white/50 mb-2">{t('calendar.convertTo')}</label>
-                <select
-                  value={convertTo}
-                  onChange={(e) => setConvertTo(e.target.value)}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg"
-                >
-                  <option value="hijri">{t('calendar.hijri')}</option>
-                  <option value="gregorian">{t('calendar.gregorian')}</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <input
-                  type="number"
-                  placeholder={t('calendar.day')}
-                  value={convertInput.day}
-                  onChange={(e) => setConvertInput({...convertInput, day: e.target.value})}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg"
-                />
-              </div>
-              <div>
-                <input
-                  type="number"
-                  placeholder={t('calendar.month')}
-                  value={convertInput.month}
-                  onChange={(e) => setConvertInput({...convertInput, month: e.target.value})}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg"
-                />
-              </div>
-              <div>
-                <input
-                  type="number"
-                  placeholder={t('calendar.year')}
-                  value={convertInput.year}
-                  onChange={(e) => setConvertInput({...convertInput, year: e.target.value})}
-                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg"
-                />
-              </div>
-            </div>
-
-            <button
-              onClick={handleConvert}
-              className="w-full py-3 bg-[#d4af37] text-[#1a3f54] rounded-lg hover:bg-[#c4a037] transition font-bold"
-            >
-              {t('calendar.convert')}
-            </button>
-
-            {convertResult && (
-              <div className="bg-[#d4af37]/10 p-4 rounded-lg text-center">
-                <p className="text-lg mb-1">{t('calendar.result')}:</p>
-                <p className="text-2xl font-bold text-[#d4af37]">
-                  {convertResult.day} {convertResult.month} {convertResult.year}
-                </p>
-              </div>
-            )}
-          </motion.div>
+          <DateConverter
+            fromType={convertFrom}
+            toType={convertTo}
+            date={convertInput}
+            result={convertResult}
+            onFromChange={setConvertFrom}
+            onToChange={setConvertTo}
+            onDateChange={setConvertInput}
+            onConvert={handleConvert}
+          />
         )}
       </div>
 
@@ -512,36 +471,49 @@ const CalendarPage = () => {
       <div className="glass p-6">
         <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">
           <i className="fas fa-star mr-2"></i>
-          {t('calendar.islamicEvents')}
+          {t('calendar.islamicEvents') || 'Islamic Events'}
         </h3>
 
-        <div className="space-y-3">
-          {events.map((event, index) => (
-            <div
-              key={index}
-              className="bg-white/5 p-4 rounded-lg hover:bg-[#d4af37]/10 transition cursor-pointer"
-              onClick={() => {
-                setCurrentDate(new Date(event.year, event.month - 1, event.day));
-                setCalendarType('hijri');
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="font-bold text-[#d4af37]">{event.name}</h4>
-                  <p className="text-sm text-white/70 mt-1">{event.description}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-arabic">
-                    {event.hijriDay} {hijriMonths[currentLanguage][event.hijriMonth - 1]}
-                  </p>
-                  <p className="text-sm text-white/50">
-                    {event.gregorianDate}
-                  </p>
+        {events.length === 0 ? (
+          <p className="text-white/50 text-center py-4">
+            {t('calendar.noEvents') || 'No events found'}
+          </p>
+        ) : (
+          <div className="space-y-3 max-h-96 overflow-y-auto">
+            {events.map((event, index) => (
+              <div
+                key={index}
+                className="bg-white/5 p-4 rounded-lg hover:bg-[#d4af37]/10 transition cursor-pointer"
+                onClick={() => {
+                  // Set to the month of this event
+                  const newDate = new Date(currentDate);
+                  newDate.setMonth(event.hijriMonth - 1);
+                  setCurrentDate(newDate);
+                  setCalendarType('hijri');
+                }}
+              >
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-bold text-[#d4af37]">
+                      {currentLanguage === 'bn' ? event.nameBn : event.name}
+                    </h4>
+                    <p className="text-sm text-white/70 mt-1">
+                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-arabic">
+                      {event.hijriDay} {hijriMonths[currentLanguage][event.hijriMonth - 1]}
+                    </p>
+                    <p className="text-sm text-white/50">
+                      {event.gregorianDate}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Ramadan Info (if in Ramadan) */}
@@ -549,28 +521,34 @@ const CalendarPage = () => {
         <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30">
           <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">
             <i className="fas fa-moon mr-2"></i>
-            {t('ramadan.mubarak')}
+            {t('ramadan.mubarak') || 'Ramadan Mubarak'}
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-black/20 p-4 rounded-lg text-center">
-              <p className="text-sm text-white/70 mb-1">{t('ramadan.day')}</p>
+              <p className="text-sm text-white/70 mb-1">
+                {t('ramadan.day') || 'Ramadan Day'}
+              </p>
               <p className="text-3xl font-bold text-[#d4af37]">
-                {formatNumber(hijriDate.day)} / 30
+                {formatNumber(hijriDate.currentDay || 1)} / {formatNumber(30)}
               </p>
             </div>
 
             <div className="bg-black/20 p-4 rounded-lg text-center">
-              <p className="text-sm text-white/70 mb-1">{t('ramadan.juz')}</p>
+              <p className="text-sm text-white/70 mb-1">
+                {t('ramadan.juz') || 'Juz'}
+              </p>
               <p className="text-3xl font-bold text-[#d4af37]">
-                {formatNumber(Math.ceil(hijriDate.day / 20 * 30))}
+                {formatNumber(Math.ceil(((hijriDate.currentDay || 1) / 30) * 30))}
               </p>
             </div>
 
             <div className="bg-black/20 p-4 rounded-lg text-center">
-              <p className="text-sm text-white/70 mb-1">{t('ramadan.laylatAlQadr')}</p>
+              <p className="text-sm text-white/70 mb-1">
+                {t('ramadan.laylatAlQadr') || 'Laylat al-Qadr'}
+              </p>
               <p className="text-3xl font-bold text-[#d4af37]">
-                {hijriDate.day >= 21 && hijriDate.day <= 29 ? '✨' : ''}
+                {(hijriDate.currentDay || 1) >= 21 && (hijriDate.currentDay || 1) <= 29 ? '✨' : ''}
               </p>
             </div>
           </div>
@@ -578,13 +556,15 @@ const CalendarPage = () => {
           {/* Progress Bar */}
           <div className="mt-4">
             <div className="flex justify-between text-sm mb-2">
-              <span>{t('ramadan.progress')}</span>
-              <span className="text-[#d4af37]">{Math.round((hijriDate.day / 30) * 100)}%</span>
+              <span>{t('ramadan.progress') || 'Ramadan Progress'}</span>
+              <span className="text-[#d4af37]">
+                {Math.round(((hijriDate.currentDay || 1) / 30) * 100)}%
+              </span>
             </div>
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{ width: `${(hijriDate.day / 30) * 100}%` }}
+                style={{ width: `${((hijriDate.currentDay || 1) / 30) * 100}%` }}
               />
             </div>
           </div>

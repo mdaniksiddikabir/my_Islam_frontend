@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
 import { getSettings, updateSettings, exportData, importData } from '../services/userService';
 import toast from 'react-hot-toast';
+import ThemeSwitcher from '../components/settings/ThemeSwitcher';
 
 const SettingsPage = () => {
   // Fix: Use correct function names from context
@@ -160,6 +161,17 @@ const SettingsPage = () => {
             : 'Current language: English'}
         </p>
       </div>
+
+
+      // In your SettingsPage JSX:
+      <div className="glass p-6">
+        <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">
+          <i className="fas fa-paint-brush mr-2"></i>
+          {t('settings.theme')}
+        </h3>
+       <ThemeSwitcher />
+      </div>
+
 
       {/* Rest of your component remains the same */}
       {/* Theme Settings */}

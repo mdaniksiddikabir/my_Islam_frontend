@@ -18,7 +18,7 @@ const EventList = () => {
   const [selectedType, setSelectedType] = useState('all');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
+  const [viewMode, setViewMode] = useState('grid');
   const [bookmarkedEvents, setBookmarkedEvents] = useState([]);
 
   // Hijri month names
@@ -77,7 +77,7 @@ const EventList = () => {
       if (searchTerm) {
         filtered = filtered.filter(event => {
           const title = currentLanguage === 'bn' ? event.nameBn : event.name;
-          return title.toLowerCase().includes(searchTerm.toLowerCase());
+          return title?.toLowerCase().includes(searchTerm.toLowerCase());
         });
       }
 
@@ -97,38 +97,51 @@ const EventList = () => {
       
       const data = await getIslamicEvents(selectedYear);
       
-      // Transform data if needed (your API might already return in correct format)
-      const formattedEvents = data.map(event => ({
-        ...event,
-        // Ensure consistent field names
-        name: event.name,
-        nameBn: event.nameBn,
-        description: event.description,
-        descriptionBn: event.descriptionBn,
-        hijriDate: `${event.hijriDay} ${hijriMonths[currentLanguage][event.hijriMonth - 1]} ${event.year} AH`,
-        gregorianDate: formatGregorianDate(event.gregorianDate)
-      }));
+      // Transform data with null checks
+      const formattedEvents = (data || []).map(event => {
+        // Safely get month name with null checks
+        const monthIndex = event?.hijriMonth ? event.hijriMonth - 1 : 0;
+        const monthName = hijriMonths[currentLanguage]?.[monthIndex] || 
+                         hijriMonths.en[monthIndex] || 
+                         '';
+        
+        return {
+          ...event,
+          name: event?.name || '',
+          nameBn: event?.nameBn || '',
+          description: event?.description || '',
+          descriptionBn: event?.descriptionBn || '',
+          hijriDate: `${event?.hijriDay || ''} ${monthName} ${event?.year || ''} AH`.trim(),
+          gregorianDate: formatGregorianDate(event?.gregorianDate)
+        };
+      });
       
       setEvents(formattedEvents);
       setFilteredEvents(formattedEvents);
     } catch (error) {
       console.error('Error fetching events:', error);
-      setError(error.message || 'Failed to load events');
-      toast.error(t('errors.loadEvents'));
+      setError(error?.message || 'Failed to load events');
+      toast.error(t('errors.loadEvents') || 'Failed to load events');
     } finally {
       setLoading(false);
     }
   };
 
   const formatGregorianDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(
-      currentLanguage === 'bn' ? 'bn-BD' : 'en-US',
-      { year: 'numeric', month: 'long', day: 'numeric' }
-    );
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString(
+        currentLanguage === 'bn' ? 'bn-BD' : 'en-US',
+        { year: 'numeric', month: 'long', day: 'numeric' }
+      );
+    } catch {
+      return dateString || '';
+    }
   };
 
   const formatNumber = (num) => {
+    if (!num && num !== 0) return '';
     if (currentLanguage === 'bn') {
       const banglaDigits = ['০','১','২','৩','৪','৫','৬','৭','৮','৯'];
       return num.toString().split('').map(d => banglaDigits[d] || d).join('');
@@ -156,32 +169,34 @@ const EventList = () => {
 
   const getTypeName = (type) => {
     const eventType = eventTypes.find(t => t.id === type);
-    return eventType?.name[currentLanguage] || eventType?.name.en || type;
+    return eventType?.name[currentLanguage] || eventType?.name.en || type || '';
   };
 
   const toggleBookmark = (eventId) => {
+    if (!eventId) return;
     if (bookmarkedEvents.includes(eventId)) {
       setBookmarkedEvents(prev => prev.filter(id => id !== eventId));
-      toast.success(t('events.removedBookmark'));
+      toast.success(t('events.removedBookmark') || 'Removed from bookmarks');
     } else {
       setBookmarkedEvents(prev => [...prev, eventId]);
-      toast.success(t('events.addedBookmark'));
+      toast.success(t('events.addedBookmark') || 'Added to bookmarks');
     }
   };
 
   const shareEvent = (event) => {
+    if (!event) return;
     const title = currentLanguage === 'bn' ? event.nameBn : event.name;
     const desc = currentLanguage === 'bn' ? event.descriptionBn : event.description;
-    const text = `${title}\n\n${desc}\n\n📅 ${event.hijriDate}\n📆 ${event.gregorianDate}`;
+    const text = `${title || ''}\n\n${desc || ''}\n\n📅 ${event.hijriDate || ''}\n📆 ${event.gregorianDate || ''}`;
     
     if (navigator.share) {
       navigator.share({
-        title: title,
+        title: title || 'Islamic Event',
         text: text,
       }).catch(console.error);
     } else {
       navigator.clipboard.writeText(text);
-      toast.success(t('events.copied'));
+      toast.success(t('events.copied') || 'Copied to clipboard');
     }
   };
 
@@ -204,6 +219,29 @@ const EventList = () => {
   if (loading) {
     return <Loader />;
   }
+
+  // Helper function to get color classes safely
+  const getColorClass = (color, type = 'bg') => {
+    const colorMap = {
+      green: 'green',
+      blue: 'blue',
+      purple: 'purple',
+      gray: 'gray'
+    };
+    const safeColor = colorMap[color] || 'gray';
+    return `${type}-${safeColor}-500/20`;
+  };
+
+  const getTextColorClass = (color) => {
+    const colorMap = {
+      green: 'green',
+      blue: 'blue',
+      purple: 'purple',
+      gray: 'gray'
+    };
+    const safeColor = colorMap[color] || 'gray';
+    return `text-${safeColor}-400`;
+  };
 
   return (
     <motion.div
@@ -340,59 +378,135 @@ const EventList = () => {
           {/* Grid View */}
           {viewMode === 'grid' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredEvents.map(event => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="glass p-6 hover:shadow-xl transition-all cursor-pointer group"
-                  onClick={() => openEventModal(event)}
-                >
-                  {/* Event Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <span className="text-4xl">{getEventIcon(event.type)}</span>
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium bg-${getEventColor(event.type)}-500/20 text-${getEventColor(event.type)}-400`}>
-                      {getTypeName(event.type)}
-                    </span>
-                  </div>
-
-                  {/* Event Title */}
-                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#d4af37] transition">
-                    {currentLanguage === 'bn' ? event.nameBn : event.name}
-                  </h3>
-
-                  {/* Event Dates */}
-                  <div className="space-y-2 mb-4 text-sm">
-                    <div className="flex items-center text-white/60">
-                      <FaMoon className="mr-2 text-[#d4af37]" />
-                      <span>{event.hijriDate}</span>
+              {filteredEvents.map(event => {
+                const color = getEventColor(event?.type || '');
+                return (
+                  <motion.div
+                    key={event?.id || Math.random()}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="glass p-6 hover:shadow-xl transition-all cursor-pointer group"
+                    onClick={() => openEventModal(event)}
+                  >
+                    {/* Event Header */}
+                    <div className="flex items-start justify-between mb-4">
+                      <span className="text-4xl">{getEventIcon(event?.type)}</span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getColorClass(color)} ${getTextColorClass(color)}`}>
+                        {getTypeName(event?.type)}
+                      </span>
                     </div>
-                    <div className="flex items-center text-white/60">
-                      <FaSun className="mr-2 text-[#d4af37]" />
-                      <span>{event.gregorianDate}</span>
+
+                    {/* Event Title */}
+                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#d4af37] transition">
+                      {currentLanguage === 'bn' ? event?.nameBn : event?.name}
+                    </h3>
+
+                    {/* Event Dates */}
+                    <div className="space-y-2 mb-4 text-sm">
+                      <div className="flex items-center text-white/60">
+                        <FaMoon className="mr-2 text-[#d4af37]" />
+                        <span>{event?.hijriDate || ''}</span>
+                      </div>
+                      <div className="flex items-center text-white/60">
+                        <FaSun className="mr-2 text-[#d4af37]" />
+                        <span>{event?.gregorianDate || ''}</span>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Description Preview */}
-                  <p className="text-white/50 text-sm line-clamp-2 mb-4">
-                    {currentLanguage === 'bn' ? event.descriptionBn : event.description}
-                  </p>
+                    {/* Description Preview */}
+                    <p className="text-white/50 text-sm line-clamp-2 mb-4">
+                      {currentLanguage === 'bn' ? event?.descriptionBn : event?.description}
+                    </p>
 
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between pt-4 border-t border-white/10">
-                    <button className="text-[#d4af37] hover:text-[#c4a037] transition text-sm">
-                      {t('events.viewDetails') || 'View Details'}
-                    </button>
-                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                      <button className="text-[#d4af37] hover:text-[#c4a037] transition text-sm">
+                        {t('events.viewDetails') || 'View Details'}
+                      </button>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleBookmark(event?.id);
+                          }}
+                          className="p-2 hover:bg-white/10 rounded-lg transition"
+                        >
+                          {bookmarkedEvents.includes(event?.id) ? (
+                            <FaBookmark className="text-[#d4af37]" />
+                          ) : (
+                            <FaRegBookmark className="text-white/40" />
+                          )}
+                        </button>
+                        
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            shareEvent(event);
+                          }}
+                          className="p-2 hover:bg-white/10 rounded-lg transition"
+                        >
+                          <FaShare className="text-white/40" />
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* List View */}
+          {viewMode === 'list' && (
+            <div className="glass divide-y divide-white/10">
+              {filteredEvents.map(event => {
+                const color = getEventColor(event?.type || '');
+                return (
+                  <motion.div
+                    key={event?.id || Math.random()}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="p-4 hover:bg-white/5 transition cursor-pointer flex items-center gap-4"
+                    onClick={() => openEventModal(event)}
+                  >
+                    {/* Event Icon */}
+                    <span className="text-3xl">{getEventIcon(event?.type)}</span>
+
+                    {/* Event Info */}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-1">
+                        <h4 className="font-bold text-white">
+                          {currentLanguage === 'bn' ? event?.nameBn : event?.name}
+                        </h4>
+                        <span className={`px-2 py-0.5 rounded-full text-xs ${getColorClass(color)} ${getTextColorClass(color)}`}>
+                          {getTypeName(event?.type)}
+                        </span>
+                      </div>
+                      <p className="text-white/50 text-sm line-clamp-1">
+                        {currentLanguage === 'bn' ? event?.descriptionBn : event?.description}
+                      </p>
+                      <div className="flex gap-4 mt-2 text-sm text-white/40">
+                        <span className="flex items-center">
+                          <FaMoon className="mr-1 text-[#d4af37] text-xs" />
+                          {event?.hijriDate || ''}
+                        </span>
+                        <span className="flex items-center">
+                          <FaSun className="mr-1 text-[#d4af37] text-xs" />
+                          {event?.gregorianDate || ''}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
                     <div className="flex gap-2">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleBookmark(event.id);
+                          toggleBookmark(event?.id);
                         }}
                         className="p-2 hover:bg-white/10 rounded-lg transition"
                       >
-                        {bookmarkedEvents.includes(event.id) ? (
+                        {bookmarkedEvents.includes(event?.id) ? (
                           <FaBookmark className="text-[#d4af37]" />
                         ) : (
                           <FaRegBookmark className="text-white/40" />
@@ -409,79 +523,9 @@ const EventList = () => {
                         <FaShare className="text-white/40" />
                       </button>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          )}
-
-          {/* List View */}
-          {viewMode === 'list' && (
-            <div className="glass divide-y divide-white/10">
-              {filteredEvents.map(event => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="p-4 hover:bg-white/5 transition cursor-pointer flex items-center gap-4"
-                  onClick={() => openEventModal(event)}
-                >
-                  {/* Event Icon */}
-                  <span className="text-3xl">{getEventIcon(event.type)}</span>
-
-                  {/* Event Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-1">
-                      <h4 className="font-bold text-white">
-                        {currentLanguage === 'bn' ? event.nameBn : event.name}
-                      </h4>
-                      <span className={`px-2 py-0.5 rounded-full text-xs bg-${getEventColor(event.type)}-500/20 text-${getEventColor(event.type)}-400`}>
-                        {getTypeName(event.type)}
-                      </span>
-                    </div>
-                    <p className="text-white/50 text-sm line-clamp-1">
-                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
-                    </p>
-                    <div className="flex gap-4 mt-2 text-sm text-white/40">
-                      <span className="flex items-center">
-                        <FaMoon className="mr-1 text-[#d4af37] text-xs" />
-                        {event.hijriDate}
-                      </span>
-                      <span className="flex items-center">
-                        <FaSun className="mr-1 text-[#d4af37] text-xs" />
-                        {event.gregorianDate}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleBookmark(event.id);
-                      }}
-                      className="p-2 hover:bg-white/10 rounded-lg transition"
-                    >
-                      {bookmarkedEvents.includes(event.id) ? (
-                        <FaBookmark className="text-[#d4af37]" />
-                      ) : (
-                        <FaRegBookmark className="text-white/40" />
-                      )}
-                    </button>
-                    
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        shareEvent(event);
-                      }}
-                      className="p-2 hover:bg-white/10 rounded-lg transition"
-                    >
-                      <FaShare className="text-white/40" />
-                    </button>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </>
@@ -513,18 +557,18 @@ const EventList = () => {
 
               {/* Event Icon */}
               <div className="text-6xl mb-4 text-center">
-                {getEventIcon(selectedEvent.type)}
+                {getEventIcon(selectedEvent?.type)}
               </div>
 
               {/* Event Title */}
               <h2 className="text-3xl font-bold text-center text-[#d4af37] mb-2">
-                {currentLanguage === 'bn' ? selectedEvent.nameBn : selectedEvent.name}
+                {currentLanguage === 'bn' ? selectedEvent?.nameBn : selectedEvent?.name}
               </h2>
 
               {/* Event Type */}
               <div className="flex justify-center mb-6">
-                <span className={`px-4 py-1 rounded-full text-sm bg-${getEventColor(selectedEvent.type)}-500/20 text-${getEventColor(selectedEvent.type)}-400`}>
-                  {getTypeName(selectedEvent.type)}
+                <span className={`px-4 py-1 rounded-full text-sm ${getColorClass(getEventColor(selectedEvent?.type))} ${getTextColorClass(getEventColor(selectedEvent?.type))}`}>
+                  {getTypeName(selectedEvent?.type)}
                 </span>
               </div>
 
@@ -534,7 +578,7 @@ const EventList = () => {
                   <FaMoon className="mx-auto text-[#d4af37] mb-2" />
                   <p className="text-sm text-white/50 mb-1">Hijri Date</p>
                   <p className="text-xl font-bold text-white">
-                    {selectedEvent.hijriDate}
+                    {selectedEvent?.hijriDate || ''}
                   </p>
                 </div>
                 
@@ -542,7 +586,7 @@ const EventList = () => {
                   <FaSun className="mx-auto text-[#d4af37] mb-2" />
                   <p className="text-sm text-white/50 mb-1">Gregorian Date</p>
                   <p className="text-xl font-bold text-white">
-                    {selectedEvent.gregorianDate}
+                    {selectedEvent?.gregorianDate || ''}
                   </p>
                 </div>
               </div>
@@ -554,21 +598,21 @@ const EventList = () => {
                   Description
                 </h3>
                 <p className="text-white/70 leading-relaxed">
-                  {currentLanguage === 'bn' ? selectedEvent.descriptionBn : selectedEvent.description}
+                  {currentLanguage === 'bn' ? selectedEvent?.descriptionBn : selectedEvent?.description}
                 </p>
               </div>
 
               {/* Action Buttons */}
               <div className="flex gap-3">
                 <button
-                  onClick={() => toggleBookmark(selectedEvent.id)}
+                  onClick={() => toggleBookmark(selectedEvent?.id)}
                   className={`flex-1 py-3 rounded-lg transition flex items-center justify-center gap-2 ${
-                    bookmarkedEvents.includes(selectedEvent.id)
+                    bookmarkedEvents.includes(selectedEvent?.id)
                       ? 'bg-[#d4af37] text-[#1a3f54]'
                       : 'bg-white/10 hover:bg-white/20 text-white'
                   }`}
                 >
-                  {bookmarkedEvents.includes(selectedEvent.id) ? (
+                  {bookmarkedEvents.includes(selectedEvent?.id) ? (
                     <>
                       <FaBookmark /> Bookmarked
                     </>

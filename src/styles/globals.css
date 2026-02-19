@@ -174,3 +174,32 @@
 .font-bangla {
   font-family: 'Hind Siliguri', sans-serif;
 }
+.lang-switch {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.125rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+}
+
+.lang-btn {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.lang-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.lang-btn.active {
+  background: #d4af37;
+  color: #1a3f54;
+}

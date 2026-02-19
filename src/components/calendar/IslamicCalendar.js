@@ -1,6 +1,12 @@
 import React from 'react';
 
 const IslamicCalendar = ({ year, month, days, events, onDayClick }) => {
+  // Add default values and null checks
+  const safeDays = days || [];
+  const safeEvents = events || [];
+  const safeYear = year || new Date().getFullYear();
+  const safeMonth = month || 1;
+
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const hijriMonths = [
@@ -11,10 +17,10 @@ const IslamicCalendar = ({ year, month, days, events, onDayClick }) => {
 
   return (
     <div>
-      {/* Month Header */}
+      {/* Month Header - with null check */}
       <div className="text-center mb-4">
         <h3 className="text-2xl font-bold text-[#d4af37]">
-          {hijriMonths[month - 1]} {year} AH
+          {hijriMonths[safeMonth - 1] || ''} {safeYear} AH
         </h3>
       </div>
 
@@ -27,31 +33,31 @@ const IslamicCalendar = ({ year, month, days, events, onDayClick }) => {
         ))}
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid - with null checks */}
       <div className="grid grid-cols-7 gap-1">
-        {days.map((day, index) => (
+        {safeDays.map((day, index) => (
           <div
             key={index}
-            onClick={() => !day.empty && onDayClick(day)}
+            onClick={() => !day?.empty && onDayClick?.(day)}
             className={`
               aspect-square p-2 rounded-lg cursor-pointer transition-all
-              ${day.empty ? 'opacity-0' : 'hover:bg-[#d4af37]/20'}
-              ${day.isToday ? 'border-2 border-[#d4af37] bg-[#d4af37]/10' : ''}
-              ${day.isRamadan ? 'bg-emerald-500/10' : ''}
-              ${day.isSpecial ? 'bg-purple-500/10' : ''}
+              ${day?.empty ? 'opacity-0' : 'hover:bg-[#d4af37]/20'}
+              ${day?.isToday ? 'border-2 border-[#d4af37] bg-[#d4af37]/10' : ''}
+              ${day?.isRamadan ? 'bg-emerald-500/10' : ''}
+              ${day?.isSpecial ? 'bg-purple-500/10' : ''}
             `}
           >
             <div className="flex flex-col items-center h-full">
-              <span className="text-lg font-bold">{day.day}</span>
+              <span className="text-lg font-bold">{day?.day || ''}</span>
               
-              {/* Event Indicators */}
-              {day.events?.length > 0 && (
+              {/* Event Indicators - with null check */}
+              {day?.events && day.events.length > 0 && (
                 <div className="flex gap-1 mt-1">
                   {day.events.map((event, i) => (
                     <div
                       key={i}
                       className="w-1.5 h-1.5 rounded-full bg-[#d4af37]"
-                      title={event.name}
+                      title={event?.name || ''}
                     />
                   ))}
                 </div>

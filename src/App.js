@@ -13,14 +13,14 @@ import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
-import ProfilePage from './pages/ProfilePage';           // ✅ ADD THIS
-import NotFoundPage from './pages/NotFoundPage';         // ✅ ADD THIS
+import ProfilePage from './pages/ProfilePage';
+import NotFoundPage from './pages/NotFoundPage';
 
 // Components
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
 import ErrorBoundary from './components/common/ErrorBoundary';
-import ProtectedRoute from './components/common/ProtectedRoute'; // ✅ ADD THIS
+import ProtectedRoute from './components/common/ProtectedRoute'; // ✅ CORRECT IMPORT
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,20 +42,28 @@ function App() {
               <Navbar />
               <main className="pt-20 pb-10 px-4 max-w-7xl mx-auto">
                 <Routes>
+                  {/* Public Routes */}
                   <Route path="/" element={<HomePage />} />
                   <Route path="/login" element={<LoginPage />} />
-                  <Route path="/profile" element={
-                    <ProtectedRoute>
-                      <ProfilePage />
-                    </ProtectedRoute>
-                  } />                                        {/* ✅ ADDED */}
                   <Route path="/prayer" element={<PrayerPage />} />
                   <Route path="/qibla" element={<QiblaPage />} />
                   <Route path="/quran" element={<QuranPage />} />
                   <Route path="/calendar" element={<CalendarPage />} />
                   <Route path="/duas" element={<DuaPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
-                  <Route path="*" element={<NotFoundPage />} />   {/* ✅ ADDED */}
+                  
+                  {/* Protected Route */}
+                  <Route 
+                    path="/profile" 
+                    element={
+                      <ProtectedRoute>
+                        <ProfilePage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  
+                  {/* 404 Route */}
+                  <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </main>
               <Footer />

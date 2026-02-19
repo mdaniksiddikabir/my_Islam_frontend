@@ -1,6 +1,11 @@
 import React from 'react';
 
 const GregorianCalendar = ({ year, month, days, onDayClick }) => {
+  // Add default values and null checks
+  const safeDays = days || [];
+  const safeYear = year || new Date().getFullYear();
+  const safeMonth = month || 1;
+
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
   const gregorianMonths = [
@@ -10,10 +15,10 @@ const GregorianCalendar = ({ year, month, days, onDayClick }) => {
 
   return (
     <div>
-      {/* Month Header */}
+      {/* Month Header - with null check */}
       <div className="text-center mb-4">
         <h3 className="text-2xl font-bold text-[#d4af37]">
-          {gregorianMonths[month - 1]} {year}
+          {gregorianMonths[safeMonth - 1] || ''} {safeYear}
         </h3>
       </div>
 
@@ -26,23 +31,25 @@ const GregorianCalendar = ({ year, month, days, onDayClick }) => {
         ))}
       </div>
 
-      {/* Calendar Grid */}
+      {/* Calendar Grid - with null checks */}
       <div className="grid grid-cols-7 gap-1">
-        {days.map((day, index) => (
+        {safeDays.map((day, index) => (
           <div
             key={index}
-            onClick={() => !day.empty && onDayClick(day)}
+            onClick={() => !day?.empty && onDayClick?.(day)}
             className={`
               aspect-square p-2 rounded-lg cursor-pointer transition-all
-              ${day.empty ? 'opacity-0' : 'hover:bg-[#d4af37]/20'}
-              ${day.isToday ? 'border-2 border-[#d4af37] bg-[#d4af37]/10' : ''}
+              ${day?.empty ? 'opacity-0' : 'hover:bg-[#d4af37]/20'}
+              ${day?.isToday ? 'border-2 border-[#d4af37] bg-[#d4af37]/10' : ''}
             `}
           >
             <div className="flex flex-col items-center h-full">
-              <span className="text-lg font-bold">{day.day}</span>
-              <span className="text-xs text-white/40 mt-1">
-                {day.weekDay}
-              </span>
+              <span className="text-lg font-bold">{day?.day || ''}</span>
+              {day?.weekDay && (
+                <span className="text-xs text-white/40 mt-1">
+                  {day.weekDay}
+                </span>
+              )}
             </div>
           </div>
         ))}

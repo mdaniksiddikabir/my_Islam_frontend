@@ -163,14 +163,7 @@ const SettingsPage = () => {
       </div>
 
 
-      // In your SettingsPage JSX:
-      <div className="glass p-6">
-        <h3 className="text-xl mb-4 text-[#d4af37] flex items-center">
-          <i className="fas fa-paint-brush mr-2"></i>
-          {t('settings.theme')}
-        </h3>
-       <ThemeSwitcher />
-      </div>
+      
 
 
       {/* Rest of your component remains the same */}

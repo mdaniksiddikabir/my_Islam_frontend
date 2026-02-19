@@ -8,7 +8,7 @@ import {
   getCurrentHijri,
   convertDate 
 } from '../services/calendarService';
-import { getPrayerTimes } from '../services/prayerService'; // You'll need this service
+import { getPrayerTimes, getTodayPrayerTimes } from '../services/prayerService';
 import Loader from '../components/common/Loader';
 import toast from 'react-hot-toast';
 import IslamicCalendar from '../components/calendar/IslamicCalendar';
@@ -30,6 +30,7 @@ const CalendarPage = () => {
   const [currentHijri, setCurrentHijri] = useState(null);
   const [currentHijriError, setCurrentHijriError] = useState(false);
   const [location, setLocation] = useState(null);
+  const [loadingPrayer, setLoadingPrayer] = useState(false);
   
   // Converter states
   const [convertFrom, setConvertFrom] = useState('gregorian');
@@ -67,7 +68,7 @@ const CalendarPage = () => {
     loadEvents();
   }, [currentDate, calendarType]);
 
-  // Load prayer times when location changes
+  // Load prayer times when location changes or date changes
   useEffect(() => {
     if (location) {
       fetchPrayerTimes();
@@ -87,6 +88,11 @@ const CalendarPage = () => {
           console.error('Error getting location:', error);
           // Default to Makkah coordinates
           setLocation({ lat: 21.4225, lng: 39.8262 });
+          toast.error(
+            currentLanguage === 'bn' 
+              ? 'অবস্থান পাওয়া যায়নি, মক্কার সময় দেখানো হচ্ছে' 
+              : 'Location not found, showing Makkah times'
+          );
         }
       );
     } else {
@@ -97,6 +103,7 @@ const CalendarPage = () => {
 
   const fetchPrayerTimes = async () => {
     try {
+      setLoadingPrayer(true);
       if (!location) return;
       
       const dateStr = currentDate.toISOString().split('T')[0];
@@ -104,6 +111,8 @@ const CalendarPage = () => {
       setPrayerTimes(times);
     } catch (error) {
       console.error('Error fetching prayer times:', error);
+    } finally {
+      setLoadingPrayer(false);
     }
   };
 
@@ -329,6 +338,9 @@ const CalendarPage = () => {
     return <Loader />;
   }
 
+  // Check if current month is Ramadan
+  const isRamadan = hijriDate?.month === 9;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -364,7 +376,7 @@ const CalendarPage = () => {
       </div>
 
       {/* Ramadan Banner - Show if current month is Ramadan */}
-      {hijriDate?.month === 9 && (
+      {isRamadan && (
         <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30 border-l-4 border-emerald-500">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -377,15 +389,15 @@ const CalendarPage = () => {
                 </h2>
                 <p className="text-sm text-white/70">
                   {currentLanguage === 'bn' 
-                    ? `রমজান ${hijriDate.currentDay || 1} | ${30 - (hijriDate.currentDay || 1)} দিন বাকি`
-                    : `Ramadan ${hijriDate.currentDay || 1} | ${30 - (hijriDate.currentDay || 1)} days remaining`
+                    ? `রমজান ${hijriDate?.currentDay || 1} | ${30 - (hijriDate?.currentDay || 1)} দিন বাকি`
+                    : `Ramadan ${hijriDate?.currentDay || 1} | ${30 - (hijriDate?.currentDay || 1)} days remaining`
                   }
                 </p>
               </div>
             </div>
             
             {/* Iftar & Sehri Times */}
-            {prayerTimes && (
+            {prayerTimes && !loadingPrayer && (
               <div className="flex gap-4">
                 <div className="text-center px-4 py-2 bg-black/20 rounded-lg">
                   <p className="text-xs text-white/50 mb-1">
@@ -405,6 +417,13 @@ const CalendarPage = () => {
                 </div>
               </div>
             )}
+            {loadingPrayer && (
+              <div className="flex gap-4">
+                <div className="text-center px-4 py-2 bg-black/20 rounded-lg">
+                  <i className="fas fa-spinner fa-spin text-emerald-400"></i>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Ramadan Progress Bar */}
@@ -414,13 +433,13 @@ const CalendarPage = () => {
                 {currentLanguage === 'bn' ? 'রমজানের অগ্রগতি' : 'Ramadan Progress'}
               </span>
               <span className="text-emerald-400">
-                {Math.round(((hijriDate.currentDay || 1) / 30) * 100)}%
+                {Math.round(((hijriDate?.currentDay || 1) / 30) * 100)}%
               </span>
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${((hijriDate.currentDay || 1) / 30) * 100}%` }}
+                style={{ width: `${((hijriDate?.currentDay || 1) / 30) * 100}%` }}
               />
             </div>
           </div>
@@ -548,7 +567,7 @@ const CalendarPage = () => {
           </div>
 
           {/* Iftar/Sehri for selected date (if Ramadan) */}
-          {hijriDate?.month === 9 && prayerTimes && (
+          {isRamadan && prayerTimes && (
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div className="bg-emerald-500/10 p-4 rounded-lg text-center border border-emerald-500/20">
                 <i className="fas fa-moon text-emerald-400 mb-2"></i>

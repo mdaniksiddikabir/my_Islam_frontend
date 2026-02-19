@@ -203,3 +203,28 @@
   background: #d4af37;
   color: #1a3f54;
 }
+/* Theme transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+/* Dark theme variables */
+.dark {
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+}
+
+/* Light theme variables */
+.light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f5f5f5;
+  --text-primary: #1a1a1a;
+  --text-secondary: #666666;
+}
+
+/* Smooth scaling on hover */
+.hover\:scale-102:hover {
+  transform: scale(1.02);
+}

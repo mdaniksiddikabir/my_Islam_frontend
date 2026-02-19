@@ -32,7 +32,7 @@ const IslamicCalendar = ({ year, month, days, events, onDayClick, prayerTimes })
     const hour = parseInt(hours);
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
+    return `${hour12}:${minutes}`;
   };
 
   return (
@@ -79,21 +79,15 @@ const IslamicCalendar = ({ year, month, days, events, onDayClick, prayerTimes })
               {/* Day Number */}
               <span className="text-lg font-bold">{day?.day || ''}</span>
               
-              {/* Iftar/Sehri Times for Ramadan */}
+              {/* Iftar/Sehri Icons for Ramadan */}
               {isRamadan && !day?.empty && prayerTimes && (
-                <div className="text-[8px] sm:text-[10px] mt-1 space-y-0.5">
-                  {day.day === 1 && (
-                    <>
-                      <div className="text-emerald-400 font-medium flex items-center gap-0.5">
-                        <i className="fas fa-moon text-[6px]"></i>
-                        <span>Sehri: {formatTime(prayerTimes?.fajr)}</span>
-                      </div>
-                      <div className="text-amber-400 font-medium flex items-center gap-0.5">
-                        <i className="fas fa-sun text-[6px]"></i>
-                        <span>Iftar: {formatTime(prayerTimes?.maghrib)}</span>
-                      </div>
-                    </>
-                  )}
+                <div className="flex gap-1 mt-1">
+                  <div className="flex items-center gap-0.5" title={`Sehri ends: ${formatTime(prayerTimes.fajr)}`}>
+                    <i className="fas fa-moon text-[8px] sm:text-[10px] text-emerald-400"></i>
+                  </div>
+                  <div className="flex items-center gap-0.5" title={`Iftar: ${formatTime(prayerTimes.maghrib)}`}>
+                    <i className="fas fa-sun text-[8px] sm:text-[10px] text-amber-400"></i>
+                  </div>
                 </div>
               )}
               
@@ -118,6 +112,20 @@ const IslamicCalendar = ({ year, month, days, events, onDayClick, prayerTimes })
           </div>
         ))}
       </div>
+
+      {/* Legend for Ramadan */}
+      {isRamadan && (
+        <div className="mt-4 flex items-center justify-center gap-4 text-xs text-white/50">
+          <div className="flex items-center gap-1">
+            <i className="fas fa-moon text-emerald-400"></i>
+            <span>{language === 'bn' ? 'সেহরি শেষ' : 'Sehri Ends'}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <i className="fas fa-sun text-amber-400"></i>
+            <span>{language === 'bn' ? 'ইফতার' : 'Iftar'}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

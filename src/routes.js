@@ -11,7 +11,7 @@ import DuaPage from './pages/DuaPage';
 import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import RegisterPage from './components/user/Register';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Components

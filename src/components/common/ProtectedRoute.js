@@ -1,17 +1,18 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import Loader from './Loader';
 
 const ProtectedRoute = ({ children }) => {
-  // 🔧 TEMPORARY: Always allow access for testing
-  // Remove this line when backend is ready
-  const isAuthenticated = true; // ✅ FORCE TRUE FOR TESTING
-  
-  // 🔒 REAL CODE (commented out for now)
-  // const token = localStorage.getItem('token');
-  // const isAuthenticated = !!token;
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return <Loader fullScreen message="Loading..." />;
+  }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return children;

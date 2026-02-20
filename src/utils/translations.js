@@ -251,7 +251,7 @@ export const enTranslations = {
     registered: 'Registration successful!',
     loggedOut: 'Logged out successfully',
     passwordReset: 'Password reset email sent'
-  }
+  },
 
   // ... after errors section
   footer: {

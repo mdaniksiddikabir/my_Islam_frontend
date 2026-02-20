@@ -217,6 +217,42 @@ export const enTranslations = {
     cityNotFound: 'City not found',
     searchFailed: 'Search failed, please try again'
   },
+  auth: {
+    login: 'Login',
+    register: 'Register',
+    logout: 'Logout',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    forgotPassword: 'Forgot Password?',
+    resetPassword: 'Reset Password',
+    rememberMe: 'Remember me',
+    noAccount: "Don't have an account?",
+    hasAccount: 'Already have an account?',
+    signIn: 'Sign In',
+    signUp: 'Sign Up',
+    name: 'Full Name',
+    agreeTerms: 'I agree to the Terms and Conditions'
+  },
+  
+  errors: {
+    // ... existing code ...
+    fillAllFields: 'Please fill in all fields',
+    invalidEmail: 'Please enter a valid email',
+    passwordLength: 'Password must be at least 6 characters',
+    passwordsDoNotMatch: 'Passwords do not match',
+    loginFailed: 'Login failed',
+    registerFailed: 'Registration failed',
+    agreeTermsRequired: 'You must agree to the terms'
+  },
+  
+  success: {
+    loggedIn: 'Logged in successfully!',
+    registered: 'Registration successful!',
+    loggedOut: 'Logged out successfully',
+    passwordReset: 'Password reset email sent'
+  }
+
   // ... after errors section
   footer: {
     rights: 'All rights reserved'
@@ -441,6 +477,41 @@ export const bnTranslations = {
     conversion: 'তারিখ রূপান্তর ব্যর্থ',
     cityNotFound: 'শহর পাওয়া যায়নি',
     searchFailed: 'অনুসন্ধান ব্যর্থ, আবার চেষ্টা করুন'
+  },
+   auth: {
+    login: 'লগইন',
+    register: 'নিবন্ধন',
+    logout: 'লগআউট',
+    email: 'ইমেইল',
+    password: 'পাসওয়ার্ড',
+    confirmPassword: 'পাসওয়ার্ড নিশ্চিত করুন',
+    forgotPassword: 'পাসওয়ার্ড ভুলে গেছেন?',
+    resetPassword: 'পাসওয়ার্ড রিসেট',
+    rememberMe: 'মনে রাখুন',
+    noAccount: 'অ্যাকাউন্ট নেই?',
+    hasAccount: 'ইতিমধ্যে অ্যাকাউন্ট আছে?',
+    signIn: 'সাইন ইন',
+    signUp: 'সাইন আপ',
+    name: 'পুরো নাম',
+    agreeTerms: 'শর্তাবলী স্বীকার করছি'
+  },
+  
+  errors: {
+    // ... existing code ...
+    fillAllFields: 'সব ঘর পূরণ করুন',
+    invalidEmail: 'বৈধ ইমেইল দিন',
+    passwordLength: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে',
+    passwordsDoNotMatch: 'পাসওয়ার্ড মিলছে না',
+    loginFailed: 'লগইন ব্যর্থ',
+    registerFailed: 'নিবন্ধন ব্যর্থ',
+    agreeTermsRequired: 'শর্তাবলী স্বীকার করুন'
+  },
+  
+  success: {
+    loggedIn: 'সফলভাবে লগইন হয়েছে!',
+    registered: 'নিবন্ধন সফল হয়েছে!',
+    loggedOut: 'লগআউট সফল হয়েছে',
+    passwordReset: 'পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে'
   },
   // ... after errors section
   footer: {

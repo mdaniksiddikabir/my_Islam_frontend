@@ -16,48 +16,48 @@ const Login = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  // Validation
+  if (!email || !password) {
+    toast.error('Please fill in all fields');
+    return;
+  }
+
+  if (!/\S+@\S+\.\S+/.test(email)) {
+    toast.error('Please enter a valid email');
+    return;
+  }
+
+  if (password.length < 6) {
+    toast.error('Password must be at least 6 characters');
+    return;
+  }
+
+  try {
+    setLoading(true);
     
-    // Validation
-    if (!email || !password) {
-      toast.error('Please fill in all fields');
-      return;
+    // Call login service - this returns response.data.data
+    const responseData = await loginService(email, password);
+    // responseData = { user, token, refreshToken }
+    
+    // Update auth context with the user data
+    login(responseData.user); // ✅ Correct: responseData.user, not response.user
+    
+    // Set remember me (extend session)
+    if (rememberMe) {
+      localStorage.setItem('rememberMe', 'true');
     }
-
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      toast.error('Please enter a valid email');
-      return;
-    }
-
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
-      return;
-    }
-
-    try {
-      setLoading(true);
-      
-      // Call login service
-      const response = await loginService(email, password);
-      
-      // Update auth context
-      login(response.user);
-      
-      // Set remember me (extend session)
-      if (rememberMe) {
-        localStorage.setItem('rememberMe', 'true');
-      }
-      
-      toast.success('Logged in successfully!');
-      navigate('/');
-    } catch (error) {
-      console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
+    
+    toast.success('Logged in successfully!');
+    navigate('/dashboard'); // Redirect to dashboard, not home
+  } catch (error) {
+    console.error('Login error:', error);
+    toast.error(error.response?.data?.message || 'Login failed');
+  } finally {
+    setLoading(false);
+  }
   };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

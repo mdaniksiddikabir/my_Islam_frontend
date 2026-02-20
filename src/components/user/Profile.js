@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import Loader from '../common/Loader';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -28,10 +29,29 @@ const Profile = () => {
     }
   };
 
+  // Format date safely
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString();
+    } catch {
+      return 'N/A';
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center py-12">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#d4af37]"></div>
+      </div>
+    );
+  }
+
+  // If no user, show error or redirect
+  if (!user) {
+    return (
+      <div className="glass p-6 text-center">
+        <p className="text-white/70">User not found. Please login again.</p>
       </div>
     );
   }
@@ -47,10 +67,10 @@ const Profile = () => {
         <div className="w-24 h-24 rounded-full bg-[#d4af37]/20 mx-auto mb-4 flex items-center justify-center">
           <i className="fas fa-user text-4xl text-[#d4af37]"></i>
         </div>
-        <h1 className="text-2xl font-bold text-[#d4af37]">{user?.name}</h1>
-        <p className="text-white/70">{user?.email}</p>
+        <h1 className="text-2xl font-bold text-[#d4af37]">{user?.name || 'User'}</h1>
+        <p className="text-white/70">{user?.email || 'No email'}</p>
         <p className="text-sm text-white/50 mt-2">
-          Member since {new Date(user?.createdAt).toLocaleDateString()}
+          Member since {formatDate(user?.createdAt)}
         </p>
       </div>
 

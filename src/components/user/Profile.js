@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import Loader from '../common/Loader';
 
 const Profile = () => {
   const { user } = useAuth();
@@ -29,11 +28,11 @@ const Profile = () => {
     }
   };
 
-  // Format date safely
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
+  // Safe date formatter
+  const formatJoinDate = () => {
+    if (!user?.createdAt) return 'N/A';
     try {
-      return new Date(dateString).toLocaleDateString();
+      return new Date(user.createdAt).toLocaleDateString();
     } catch {
       return 'N/A';
     }
@@ -47,11 +46,11 @@ const Profile = () => {
     );
   }
 
-  // If no user, show error or redirect
+  // Safety check for user
   if (!user) {
     return (
       <div className="glass p-6 text-center">
-        <p className="text-white/70">User not found. Please login again.</p>
+        <p className="text-white/70">Please log in to view your profile</p>
       </div>
     );
   }
@@ -70,7 +69,7 @@ const Profile = () => {
         <h1 className="text-2xl font-bold text-[#d4af37]">{user?.name || 'User'}</h1>
         <p className="text-white/70">{user?.email || 'No email'}</p>
         <p className="text-sm text-white/50 mt-2">
-          Member since {formatDate(user?.createdAt)}
+          Member since {formatJoinDate()}
         </p>
       </div>
 

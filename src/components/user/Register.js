@@ -75,31 +75,37 @@ const Register = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  
+  if (!validateForm()) return;
+  
+  try {
+    setLoading(true);
     
-    if (!validateForm()) return;
+    const responseData = await registerService({
+      name: formData.name,
+      email: formData.email,
+      password: formData.password
+    });
     
-    try {
-      setLoading(true);
-      
-      const response = await registerService({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password
-      });
-      
-      login(response.user);
-      toast.success('Registration successful!');
-      navigate('/');
-      
-    } catch (error) {
-      console.error('Registration error:', error);
-      toast.error(error.response?.data?.message || 'Registration failed');
-    } finally {
-      setLoading(false);
-    }
+    // Debug: log the entire response
+    console.log('🔥 Registration response data:', responseData);
+    console.log('🔥 User object:', responseData.user);
+    console.log('🔥 Token:', responseData.token);
+    
+    // Now you can see the structure
+    login(responseData.user); // This should now work
+    
+    toast.success('Registration successful!');
+    navigate('/dashboard');
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    toast.error(error.response?.data?.message || 'Registration failed');
+  } finally {
+    setLoading(false);
+  }
   };
-
   const getStrengthColor = () => {
     const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
     return colors[passwordStrength - 1] || 'bg-gray-500';

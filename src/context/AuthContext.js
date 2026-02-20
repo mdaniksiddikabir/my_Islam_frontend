@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getCurrentUser, isAuthenticated } from '../services/auth';
+import { getCurrentUser, isAuthenticated, logout as logoutService } from '../services/auth';
 
 const AuthContext = createContext();
 
@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    logoutService();
     setUser(null);
     setAuthenticated(false);
   };

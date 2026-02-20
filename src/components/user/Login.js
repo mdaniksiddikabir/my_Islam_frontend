@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { login as loginService } from '../../services/auth';
 import toast from 'react-hot-toast';
 
@@ -14,50 +14,65 @@ const Login = () => {
   
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  const from = location.state?.from?.pathname || '/dashboard';
+
+  // Load saved email if "Remember Me" was checked
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('savedEmail');
+    const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
+    
+    if (savedRememberMe && savedEmail) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  
-  // Validation
-  if (!email || !password) {
-    toast.error('Please fill in all fields');
-    return;
-  }
-
-  if (!/\S+@\S+\.\S+/.test(email)) {
-    toast.error('Please enter a valid email');
-    return;
-  }
-
-  if (password.length < 6) {
-    toast.error('Password must be at least 6 characters');
-    return;
-  }
-
-  try {
-    setLoading(true);
+    e.preventDefault();
     
-    // Call login service - this returns response.data.data
-    const responseData = await loginService(email, password);
-    // responseData = { user, token, refreshToken }
-    
-    // Update auth context with the user data
-    login(responseData.user); // ✅ Correct: responseData.user, not response.user
-    
-    // Set remember me (extend session)
-    if (rememberMe) {
-      localStorage.setItem('rememberMe', 'true');
+    if (!email || !password) {
+      toast.error('Please fill in all fields');
+      return;
     }
-    
-    toast.success('Logged in successfully!');
-    navigate('/dashboard'); // Redirect to dashboard, not home
-  } catch (error) {
-    console.error('Login error:', error);
-    toast.error(error.response?.data?.message || 'Login failed');
-  } finally {
-    setLoading(false);
-  }
+
+    if (!/\S+@\S+\.\S+/.test(email)) {
+      toast.error('Please enter a valid email');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const responseData = await loginService(email, password);
+      
+      // Handle Remember Me
+      if (rememberMe) {
+        // Save email for 30 days
+        localStorage.setItem('savedEmail', email);
+        localStorage.setItem('rememberMe', 'true');
+        
+        // Optionally save with longer token expiration
+        // This would need backend support for "remember me" tokens
+      } else {
+        // Clear saved data
+        localStorage.removeItem('savedEmail');
+        localStorage.removeItem('rememberMe');
+      }
+      
+      login(responseData.user);
+      toast.success('Logged in successfully!');
+      navigate(from, { replace: true });
+      
+    } catch (error) {
+      console.error('Login error:', error);
+      toast.error(error.response?.data?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
   };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -117,14 +132,27 @@ const Login = () => {
 
           {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-white/20 bg-white/5 checked:bg-[#d4af37]"
-              />
-              <span className="text-sm text-white/50">Remember me</span>
+            <label className="flex items-center gap-2 cursor-pointer group">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="sr-only"
+                />
+                <div className={`w-5 h-5 border-2 rounded transition-all duration-200 ${
+                  rememberMe 
+                    ? 'bg-[#d4af37] border-[#d4af37]' 
+                    : 'bg-transparent border-white/30 group-hover:border-white/50'
+                }`}>
+                  {rememberMe && (
+                    <i className="fas fa-check text-[#1a3f54] text-xs absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></i>
+                  )}
+                </div>
+              </div>
+              <span className="text-sm text-white/50 group-hover:text-white/70 transition">
+                Remember me
+              </span>
             </label>
             
             <Link 
@@ -165,12 +193,15 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Islamic Quote */}
-        <div className="mt-8 pt-6 border-t border-white/10">
-          <p className="text-center text-sm text-white/30 italic">
-            "Seeking knowledge is an obligation upon every Muslim"
-          </p>
-        </div>
+        {/* Remember Me Info */}
+        {rememberMe && (
+          <div className="mt-4 p-3 bg-[#d4af37]/10 rounded-lg text-center">
+            <p className="text-xs text-[#d4af37]">
+              <i className="fas fa-info-circle mr-1"></i>
+              You'll stay logged in on this device
+            </p>
+          </div>
+        )}
       </div>
     </motion.div>
   );

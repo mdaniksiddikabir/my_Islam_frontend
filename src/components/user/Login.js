@@ -32,6 +32,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation
     if (!email || !password) {
       toast.error('Please fill in all fields');
       return;
@@ -45,29 +46,37 @@ const Login = () => {
     try {
       setLoading(true);
       
-      const responseData = await loginService(email, password);
+      // Pass rememberMe to login service (for backend token expiration)
+      const responseData = await loginService(email, password, rememberMe);
       
-      // Handle Remember Me
+      // Handle Remember Me for frontend
       if (rememberMe) {
         // Save email for 30 days
         localStorage.setItem('savedEmail', email);
         localStorage.setItem('rememberMe', 'true');
-        
-        // Optionally save with longer token expiration
-        // This would need backend support for "remember me" tokens
       } else {
         // Clear saved data
         localStorage.removeItem('savedEmail');
         localStorage.removeItem('rememberMe');
       }
       
+      // Update auth context
       login(responseData.user);
+      
       toast.success('Logged in successfully!');
       navigate(from, { replace: true });
       
     } catch (error) {
       console.error('Login error:', error);
-      toast.error(error.response?.data?.message || 'Login failed');
+      
+      // Show appropriate error message
+      if (error.response?.status === 401) {
+        toast.error('Invalid email or password');
+      } else if (error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Login failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -77,7 +86,7 @@ const Login = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="min-h-[80vh] flex items-center justify-center py-8"
+      className="min-h-[80vh] flex items-center justify-center py-8 px-4"
     >
       <div className="glass max-w-md w-full p-8 rounded-2xl">
         {/* Header */}
@@ -103,6 +112,7 @@ const Login = () => {
                 className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#d4af37] focus:outline-none transition"
                 placeholder="Enter your email"
                 disabled={loading}
+                required
               />
             </div>
           </div>
@@ -119,6 +129,7 @@ const Login = () => {
                 className="w-full pl-12 pr-12 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#d4af37] focus:outline-none transition"
                 placeholder="Enter your password"
                 disabled={loading}
+                required
               />
               <button
                 type="button"
@@ -196,12 +207,22 @@ const Login = () => {
         {/* Remember Me Info */}
         {rememberMe && (
           <div className="mt-4 p-3 bg-[#d4af37]/10 rounded-lg text-center">
-            <p className="text-xs text-[#d4af37]">
-              <i className="fas fa-info-circle mr-1"></i>
-              You'll stay logged in on this device
+            <p className="text-xs text-[#d4af37] flex items-center justify-center gap-1">
+              <i className="fas fa-info-circle"></i>
+              You'll stay logged in on this device for 30 days
             </p>
           </div>
         )}
+
+        {/* Islamic Quote */}
+        <div className="mt-8 pt-6 border-t border-white/10">
+          <p className="text-center text-sm text-white/30 italic">
+            "Seeking knowledge is an obligation upon every Muslim"
+          </p>
+          <p className="text-center text-xs text-white/20 mt-2">
+            - Prophet Muhammad (ﷺ)
+          </p>
+        </div>
       </div>
     </motion.div>
   );

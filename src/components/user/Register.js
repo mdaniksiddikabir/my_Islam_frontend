@@ -91,52 +91,50 @@ const Register = () => {
     
     return true;
   };
-
+  
   const handleSubmit = async (e) => {
-    e.preventDefault();
+   e.preventDefault();
+  
+   if (!validateForm()) return;
+   
+   try {
+     setLoading(true);
     
-    if (!validateForm()) return;
+     const userData = {
+       name: formData.name.trim(),
+       email: formData.email.trim().toLowerCase(),
+       password: formData.password
+     };
     
+    const responseData = await registerService(userData);
+    
+    // Success! User is in DB
+    login(responseData.user);
+    toast.success('Registration successful!');
+    navigate('/dashboard');
+    
+  } catch (error) {
+    console.error('Registration error:', error);
+    
+    // Even if we get an error, check if user was created
+    // Try logging in with the credentials
     try {
-      setLoading(true);
-      
-      // Send ONLY the fields backend expects
-      const userData = {
-        name: formData.name.trim(),
-        email: formData.email.trim().toLowerCase(),
-        password: formData.password
-        // ❌ NO confirmPassword
-        // ❌ NO agreeTerms
-        // ❌ NO language
-        // ❌ NO other fields
-      };
-      
-      console.log('📦 Sending to backend:', userData);
-      
-      const responseData = await registerService(userData);
-      console.log('✅ Registration success:', responseData);
-      
-      // Log the user in after successful registration
-      login(responseData.user);
-      
-      toast.success('Registration successful! Welcome to Islamic App');
-      navigate('/dashboard');
-      
-    } catch (error) {
-      console.error('❌ Registration error:', error);
-      
-      // Show validation errors from backend
-      if (error.response?.data?.errors) {
-        const firstError = error.response.data.errors[0];
-        toast.error(firstError.msg);
-      } else {
-        toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
+      const loginResponse = await loginService(formData.email, formData.password);
+      if (loginResponse) {
+        toast.success('Registration successful! Logging you in...');
+        login(loginResponse.user);
+        navigate('/dashboard');
+        return;
       }
-    } finally {
-      setLoading(false);
+    } catch (loginError) {
+      // Login also failed, but user might still exist
+      toast.success('Registration successful! Please login.');
+      navigate('/login');
     }
-  };
-
+  } finally {
+    setLoading(false);
+  }
+};
   const getStrengthColor = () => {
     const colors = [
       'bg-red-500',

@@ -3,12 +3,14 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import axios from 'axios';
+import Loader from '../common/Loader';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const [nextPrayer, setNextPrayer] = useState(null);
   const [dailyVerse, setDailyVerse] = useState(null);
   const [dailyDua, setDailyDua] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -16,26 +18,42 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [prayerRes, verseRes, duaRes] = await Promise.all([
-        axios.get('/api/prayer/next'),
-        axios.get('/api/quran/daily'),
-        axios.get('/api/duas/daily')
+        axios.get('/api/prayer/next').catch(() => ({ data: { data: null } })),
+        axios.get('/api/quran/daily').catch(() => ({ data: { data: null } })),
+        axios.get('/api/duas/daily').catch(() => ({ data: { data: null } }))
       ]);
       
-      setNextPrayer(prayerRes.data.data);
-      setDailyVerse(verseRes.data.data);
-      setDailyDua(duaRes.data.data);
+      setNextPrayer(prayerRes?.data?.data);
+      setDailyVerse(verseRes?.data?.data);
+      setDailyDua(duaRes?.data?.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
+  // Show loader while checking auth or loading data
+  if (!user) {
+    return <Loader fullScreen message="Loading user..." />;
+  }
+
+  if (loading) {
+    return <Loader fullScreen message="Loading dashboard..." />;
+  }
+
   return (
-    <div className="space-y-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
       {/* Welcome Banner */}
       <div className="glass p-6 bg-gradient-to-r from-[#d4af37]/20 to-transparent">
         <h1 className="text-2xl font-bold text-[#d4af37] mb-2">
-          Welcome back, {user?.name}!
+          Welcome back, {user?.name || 'User'}!
         </h1>
         <p className="text-white/70">
           Your spiritual journey continues. Here's your daily summary.
@@ -76,11 +94,11 @@ const Dashboard = () => {
             </h3>
             <div className="text-center">
               <p className="text-3xl font-bold text-[#d4af37] mb-2">
-                {nextPrayer.name}
+                {nextPrayer?.name || 'N/A'}
               </p>
-              <p className="text-xl">{nextPrayer.time}</p>
+              <p className="text-xl">{nextPrayer?.time || '--:--'}</p>
               <p className="text-sm text-white/50 mt-2">
-                Time remaining: {nextPrayer.remaining}
+                Time remaining: {nextPrayer?.remaining || '0 min'}
               </p>
             </div>
           </div>
@@ -93,10 +111,10 @@ const Dashboard = () => {
               <i className="fas fa-quran mr-2"></i>
               Today's Verse
             </h3>
-            <p className="text-xl mb-2 text-right font-arabic">{dailyVerse.arabic}</p>
-            <p className="text-white/80 mb-2">{dailyVerse.translation}</p>
+            <p className="text-xl mb-2 text-right font-arabic">{dailyVerse?.arabic || ''}</p>
+            <p className="text-white/80 mb-2">{dailyVerse?.translation || ''}</p>
             <p className="text-sm text-[#d4af37]">
-              {dailyVerse.surah} - Verse {dailyVerse.verse}
+              {dailyVerse?.surah || ''} - Verse {dailyVerse?.verse || ''}
             </p>
           </div>
         )}
@@ -109,12 +127,19 @@ const Dashboard = () => {
             <i className="fas fa-star mr-2"></i>
             Daily Dua
           </h3>
-          <p className="text-xl mb-2 text-right font-arabic">{dailyDua.arabic}</p>
-          <p className="text-white/80">{dailyDua.translation}</p>
-          <p className="text-sm text-[#d4af37] mt-2">{dailyDua.reference}</p>
+          <p className="text-xl mb-2 text-right font-arabic">{dailyDua?.arabic || ''}</p>
+          <p className="text-white/80">{dailyDua?.translation || ''}</p>
+          <p className="text-sm text-[#d4af37] mt-2">{dailyDua?.reference || ''}</p>
         </div>
       )}
-    </div>
+
+      {/* Show message if no data */}
+      {!nextPrayer && !dailyVerse && !dailyDua && (
+        <div className="glass p-6 text-center">
+          <p className="text-white/50">No data available. Check back later.</p>
+        </div>
+      )}
+    </motion.div>
   );
 };
 

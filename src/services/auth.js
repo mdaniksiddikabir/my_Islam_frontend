@@ -26,28 +26,45 @@ export const login = async (email, password) => {
   }
 };
 
-export const register = async (userData) => {
+export const register = async (userData, retryCount = 0) => {
   try {
-    // Your backend expects /api/auth/register
-    const response = await api.post('/api/auth/register', userData);
+    console.log('📤 Sending registration data:', userData);
     
-    // Your backend returns { success: true, data: { user, token, refreshToken } }
+    const response = await api.post('/api/auth/register', {
+      name: userData.name,
+      email: userData.email,
+      password: userData.password
+    });
+    
+    console.log('📥 Registration response:', response.data);
+    
     if (response.data.success && response.data.data) {
       const { user, token, refreshToken } = response.data.data;
       
-      // Store tokens and user data
       localStorage.setItem('token', token);
       if (refreshToken) {
         localStorage.setItem('refreshToken', refreshToken);
       }
       localStorage.setItem('user', JSON.stringify(user));
       
-      return response.data.data; // Return the data object
+      return response.data.data;
     }
     
     throw new Error(response.data.message || 'Registration failed');
   } catch (error) {
-    console.error('Register service error:', error);
+    // If it's a network error and we haven't retried too many times
+    if ((error.message === 'Network Error' || error.code === 'ECONNABORTED') && retryCount < 3) {
+      console.log(`🌐 Network error, retrying (${retryCount + 1}/3)...`);
+      // Wait 2 seconds before retry
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return register(userData, retryCount + 1);
+    }
+    
+    console.error('❌ Register service error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status
+    });
     throw error;
   }
 };

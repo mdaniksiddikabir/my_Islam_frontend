@@ -10,14 +10,17 @@ import QuranPage from './pages/QuranPage';
 import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
-import ProfilePage from './pages/ProfilePage';
+
+// User Components (from components/user folder)
 import Login from './components/user/Login';
 import Register from './components/user/Register';
+import Dashboard from './components/user/Dashboard';
+import Profile from './components/user/Profile';
 import ForgotPassword from './components/user/ForgotPassword';
 import ResetPassword from './components/user/ResetPassword';
-import NotFoundPage from './pages/NotFoundPage';
 
-// Components
+// Common Components
+import NotFoundPage from './pages/NotFoundPage';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import Loader from './components/common/Loader';
 
@@ -25,12 +28,12 @@ const AppRoutes = () => {
   const { loading } = useAuth();
 
   if (loading) {
-    return <Loader fullScreen />;
+    return <Loader fullScreen message="Loading application..." />;
   }
 
   return (
     <Routes>
-      {/* Public Routes */}
+      {/* ========== PUBLIC ROUTES ========== */}
       <Route path="/" element={<HomePage />} />
       <Route path="/prayer" element={<PrayerPage />} />
       <Route path="/qibla" element={<QiblaPage />} />
@@ -39,20 +42,26 @@ const AppRoutes = () => {
       <Route path="/duas" element={<DuaPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       
-      {/* Auth Routes */}
+      {/* ========== AUTH ROUTES (Public) ========== */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
-      {/* Protected Routes */}
-      <Route path="/profile" element={
+      {/* ========== PROTECTED ROUTES (Require Login) ========== */}
+      <Route path="/dashboard" element={
         <ProtectedRoute>
-          <ProfilePage />
+          <Dashboard />
         </ProtectedRoute>
       } />
       
-      {/* 404 Route */}
+      <Route path="/profile" element={
+        <ProtectedRoute>
+          <Profile />
+        </ProtectedRoute>
+      } />
+      
+      {/* ========== 404 ROUTE ========== */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );

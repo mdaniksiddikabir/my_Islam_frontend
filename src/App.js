@@ -21,6 +21,8 @@ import NotFoundPage from './pages/NotFoundPage';
 import Register from './components/user/Register';
 import ForgotPassword from './components/user/ForgotPassword';
 import ResetPassword from './components/user/ResetPassword';
+import RamadanPage from './pages/RamadanPage';
+
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -63,7 +65,9 @@ function App() {
                         <Route path="/reset-password/:token" element={<ResetPassword />} />
                         <Route path="/prayer" element={<PrayerPage />} />
                         <Route path="/qibla" element={<QiblaPage />} />
-                        <Route path="/quran" element={<QuranPage />} />
+                        <Route path="/quran" element={<QuranPage />} />                        
+                        // Add route: For Ramadan calendar 
+                        <Route path="/ramadan" element={<RamadanPage />} />
                         <Route path="/calendar" element={<CalendarPage />} />
                         <Route path="/duas" element={<DuaPage />} />
                         <Route path="/settings" element={<SettingsPage />} />

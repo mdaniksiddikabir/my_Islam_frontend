@@ -59,7 +59,7 @@ export const convertDate = async (from, to, date) => {
 // Get today's Hijri date
 export const getCurrentHijri = async () => {
   try {
-    const response = await axios.get(`${API_BASE_URL}/api/calendar/current-hijri`);
+    const response = await axios.get(`${API_BASE_URL}/api/calendar/today`);
     return response.data.data;
   } catch (error) {
     console.error('Error fetching today\'s Hijri date:', error);

@@ -1,3 +1,4 @@
+// src/pages/CalendarPage.js
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -8,7 +9,7 @@ import {
   getCurrentHijri,
   convertDate 
 } from '../services/calendarService';
-import { getPrayerTimes, getTodayPrayerTimes } from '../services/prayerService';
+import { getPrayerTimes } from '../services/prayerService';
 import Loader from '../components/common/Loader';
 import toast from 'react-hot-toast';
 import IslamicCalendar from '../components/calendar/IslamicCalendar';
@@ -16,7 +17,7 @@ import GregorianCalendar from '../components/calendar/GregorianCalendar';
 import DateConverter from '../components/calendar/DateConverter';
 
 const CalendarPage = () => {
-  const { t, currentLanguage } = useLanguage();
+  const { t, currentLanguage } = useLanguage(); // 'bn' or 'en'
   const [loading, setLoading] = useState(true);
   const [calendarType, setCalendarType] = useState('hijri');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -27,7 +28,7 @@ const CalendarPage = () => {
   const [prayerTimes, setPrayerTimes] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [showConverter, setShowConverter] = useState(false);
-  const [currentHijri, setCurrentHijri] = useState(null);
+  const [currentHijri, setCurrentHijri] = useState(null); // This will now get { day, month, monthName, year }
   const [currentHijriError, setCurrentHijriError] = useState(false);
   const [location, setLocation] = useState(null);
   const [loadingPrayer, setLoadingPrayer] = useState(false);
@@ -42,7 +43,7 @@ const CalendarPage = () => {
   });
   const [convertResult, setConvertResult] = useState(null);
 
-  // Hijri month names
+  // Hijri month names - English and Bengali only
   const hijriMonths = {
     en: [
       'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani',
@@ -54,6 +55,12 @@ const CalendarPage = () => {
       'জমাদিউল আউয়াল', 'জমাদিউস সানি', 'রজব', 'শাবান',
       'রমজান', 'শাওয়াল', 'জিলকদ', 'জিলহজ'
     ]
+  };
+
+  // Gregorian month names - English and Bengali only
+  const gregorianMonths = {
+    en: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+    bn: ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর']
   };
 
   // Load current Hijri date on mount
@@ -116,10 +123,12 @@ const CalendarPage = () => {
     }
   };
 
+  // FIXED: This now handles your API response correctly
   const fetchCurrentHijri = async () => {
     try {
       setCurrentHijriError(false);
       const data = await getCurrentHijri();
+      // data is now { day: 3, month: 9, monthName: "رمضان", year: 1447 }
       setCurrentHijri(data || null);
     } catch (error) {
       console.warn('Current Hijri date API not available:', error);
@@ -198,8 +207,11 @@ const CalendarPage = () => {
     for (let d = 1; d <= totalDays; d++) {
       const dayData = data.days?.find(day => day?.day === d) || {};
       
-      const isToday = d === data.currentDay && 
-                     data.month === (new Date().getMonth() + 1);
+      // FIXED: Check if this day is today using currentHijri
+      const isToday = currentHijri && 
+                     d === currentHijri.day && 
+                     data.month === currentHijri.month &&
+                     data.year === currentHijri.year;
 
       // Find events for this day
       const dayEvents = events.filter(event => 
@@ -245,9 +257,10 @@ const CalendarPage = () => {
     for (let d = 1; d <= totalDays; d++) {
       const dayData = data.days?.find(day => day?.day === d) || {};
       
-      const isToday = d === data.currentDay && 
-                     data.month === (new Date().getMonth() + 1) &&
-                     data.year === new Date().getFullYear();
+      const today = new Date();
+      const isToday = d === today.getDate() && 
+                     data.month === (today.getMonth() + 1) &&
+                     data.year === today.getFullYear();
 
       days.push({
         day: d,
@@ -338,8 +351,13 @@ const CalendarPage = () => {
     return <Loader />;
   }
 
-  // Check if current month is Ramadan
-  const isRamadan = hijriDate?.month === 9;
+  // Check if current month is Ramadan - FIXED: using currentHijri
+  const isRamadan = currentHijri?.month === 9;
+
+  // Calculate days remaining in Ramadan
+  const ramadanDaysRemaining = isRamadan && currentHijri?.day 
+    ? 30 - currentHijri.day 
+    : 0;
 
   return (
     <motion.div
@@ -357,20 +375,21 @@ const CalendarPage = () => {
           {t('calendar.subtitle') || 'Track Islamic dates and events'}
         </p>
         
-        {/* Current Hijri Date */}
-        {currentHijri && !currentHijriError && currentHijri.day && (
+        {/* Current Hijri Date - FIXED to use the correct structure */}
+        {currentHijri && !currentHijriError && (
           <div className="mt-4 inline-block bg-[#d4af37]/10 px-6 py-3 rounded-lg">
             <p className="text-sm text-white/50 mb-1">
-              {currentLanguage === 'en' ? 'Today\'s Hijri Date:' : 
-               currentLanguage === 'bn' ? 'আজকের হিজরি তারিখ:' : 
-               'Today\'s Hijri Date:'}
+              {currentLanguage === 'en' ? 'Today\'s Hijri Date:' : 'আজকের হিজরি তারিখ:'}
             </p>
             <p className="text-xl font-bold text-[#d4af37]">
-              {formatNumber(currentHijri.day)} {hijriMonths[currentLanguage]?.[currentHijri.month - 1] || ''} {formatNumber(currentHijri.year)} AH
+              {formatNumber(currentHijri.day)} {hijriMonths[currentLanguage]?.[currentHijri.month - 1] || hijriMonths.en[currentHijri.month - 1]} {formatNumber(currentHijri.year)} AH
             </p>
-            <p className="text-sm text-white/50 mt-1">
-              {currentHijri.gregorian || ''}
-            </p>
+            {/* Optional: Show Gregorian date from API if available */}
+            {currentHijri.gregorian && (
+              <p className="text-sm text-white/50 mt-1">
+                {currentHijri.gregorian}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -389,8 +408,8 @@ const CalendarPage = () => {
                 </h2>
                 <p className="text-sm text-white/70">
                   {currentLanguage === 'bn' 
-                    ? `রমজান ${hijriDate?.currentDay || 1} | ${30 - (hijriDate?.currentDay || 1)} দিন বাকি`
-                    : `Ramadan ${hijriDate?.currentDay || 1} | ${30 - (hijriDate?.currentDay || 1)} days remaining`
+                    ? `রমজান ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} দিন বাকি`
+                    : `Ramadan ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} days remaining`
                   }
                 </p>
               </div>
@@ -433,13 +452,13 @@ const CalendarPage = () => {
                 {currentLanguage === 'bn' ? 'রমজানের অগ্রগতি' : 'Ramadan Progress'}
               </span>
               <span className="text-emerald-400">
-                {Math.round(((hijriDate?.currentDay || 1) / 30) * 100)}%
+                {Math.round(((currentHijri?.day || 1) / 30) * 100)}%
               </span>
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${((hijriDate?.currentDay || 1) / 30) * 100}%` }}
+                style={{ width: `${((currentHijri?.day || 1) / 30) * 100}%` }}
               />
             </div>
           </div>
@@ -487,11 +506,13 @@ const CalendarPage = () => {
           <h2 className="text-2xl font-bold">
             {calendarType === 'hijri' ? (
               <>
-                {hijriMonths[currentLanguage]?.[(currentDate.getMonth()) % 12] || ''} {formatNumber(currentDate.getFullYear())} AH
+                {hijriMonths[currentLanguage]?.[hijriDate?.month ? hijriDate.month - 1 : currentDate.getMonth()] || 
+                 hijriMonths.en[hijriDate?.month ? hijriDate.month - 1 : currentDate.getMonth()]} {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
               </>
             ) : (
               <>
-                {new Date(currentDate).toLocaleDateString(currentLanguage === 'bn' ? 'bn-BD' : 'en-US', { month: 'long' })} {formatNumber(currentDate.getFullYear())}
+                {gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || 
+                 gregorianMonths.en[currentDate.getMonth()]} {formatNumber(currentDate.getFullYear())}
               </>
             )}
           </h2>
@@ -549,7 +570,7 @@ const CalendarPage = () => {
                 {t('calendar.hijri') || 'Hijri'}
               </p>
               <p className="text-2xl font-arabic">
-                {formatNumber(selectedDate.day)} {hijriMonths[currentLanguage]?.[selectedDate.month - 1] || ''} {formatNumber(selectedDate.year)} AH
+                {formatNumber(selectedDate.day)} {hijriMonths[currentLanguage]?.[selectedDate.month - 1] || hijriMonths.en[selectedDate.month - 1]} {formatNumber(selectedDate.year)} AH
               </p>
             </div>
             
@@ -560,7 +581,7 @@ const CalendarPage = () => {
               <p className="text-2xl">
                 {selectedDate.gregorian 
                   ? selectedDate.gregorian
-                  : `${formatNumber(selectedDate.day)} ${new Date(currentDate).toLocaleDateString(currentLanguage === 'bn' ? 'bn-BD' : 'en-US', { month: 'long' })} ${formatNumber(currentDate.getFullYear())}`
+                  : `${formatNumber(selectedDate.day)} ${gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || gregorianMonths.en[currentDate.getMonth()]} ${formatNumber(currentDate.getFullYear())}`
                 }
               </p>
             </div>

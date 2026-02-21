@@ -252,7 +252,21 @@
   background: rgba(255, 255, 255, 0.1);
   color: white;
 }
+.ramadan-item {
+  position: relative;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(212, 175, 55, 0.1));
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
 
+.ramadan-item:hover {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(212, 175, 55, 0.2));
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.ramadan-item.active {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.3), rgba(212, 175, 55, 0.3));
+  border-color: #10b981;
+}
 .nav-item.active {
   background: rgba(212, 175, 55, 0.2);
   color: #d4af37;

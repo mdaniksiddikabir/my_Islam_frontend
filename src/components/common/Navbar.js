@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { logout as logoutService } from '../../services/auth';
 import LanguageSwitcher from './LanguageSwitcher';
-import useRamadan from '../../hooks/useRamadan'; // Import the hook
+import useRamadan from '../../hooks/useRamadan';
 import toast from 'react-hot-toast';
 
 const Navbar = () => {
@@ -15,7 +15,7 @@ const Navbar = () => {
   
   const { t } = useLanguage();
   const { user, isAuthenticated, logout } = useAuth();
-  const { isRamadan, ramadanInfo } = useRamadan(); // Use the hook
+  const { isRamadan, ramadanInfo } = useRamadan();
 
   // Base navigation items
   const baseNavItems = [
@@ -25,21 +25,23 @@ const Navbar = () => {
     { path: '/quran', icon: 'fas fa-quran', label: 'quran' },
     { path: '/calendar', icon: 'fas fa-calendar', label: 'calendar' },
     { path: '/duas', icon: 'fas fa-hands-praying', label: 'duas' },
-    { path: '/settings', icon: 'fas fa-cog', label: 'settings' },
   ];
 
-  // Add Ramadan link conditionally
-  const navItems = isRamadan
-    ? [
-        ...baseNavItems,
-        { 
-          path: '/ramadan', 
-          icon: 'fas fa-moon', 
-          label: 'ramadan',
-          badge: `Day ${ramadanInfo.day}` // Shows current day
-        }
-      ]
-    : baseNavItems;
+  // Settings at the end
+  const settingsItem = { path: '/settings', icon: 'fas fa-cog', label: 'settings' };
+
+  // Ramadan item (only shown during Ramadan)
+  const ramadanItem = {
+    path: '/ramadan',
+    icon: 'fas fa-moon',
+    label: 'ramadan',
+    badge: `Day ${ramadanInfo.day}/30`
+  };
+
+  // Build final nav items
+  const navItems = isRamadan 
+    ? [...baseNavItems, ramadanItem, settingsItem]
+    : [...baseNavItems, settingsItem];
 
   const handleLogout = async () => {
     try {
@@ -53,10 +55,26 @@ const Navbar = () => {
     }
   };
 
+  // Translation keys for Ramadan
+  const translations = {
+    en: {
+      ramadan: 'Ramadan',
+      ramadanFull: 'Ramadan Calendar',
+      day: 'Day'
+    },
+    bn: {
+      ramadan: 'রমজান',
+      ramadanFull: 'রমজান ক্যালেন্ডার',
+      day: 'রোজা'
+    }
+  };
+
+  const txt = translations[language] || translations.en;
+
   return (
     <nav className="glass-nav fixed top-0 left-0 right-0 z-50 px-4 py-3">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Logo with Ramadan Badge */}
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2 group">
           <div className="relative">
             <i className="fas fa-moon text-2xl text-[#d4af37] group-hover:rotate-12 transition-transform"></i>
@@ -67,12 +85,6 @@ const Navbar = () => {
           <span className="text-xl font-bold hidden sm:block font-bangla text-white group-hover:text-[#d4af37] transition">
             {t('app.name')}
           </span>
-          {/* Ramadan Text Badge (optional) */}
-          {isRamadan && (
-            <span className="hidden lg:block ml-2 px-2 py-0.5 bg-emerald-600/30 text-emerald-400 text-xs rounded-full border border-emerald-500/30">
-              🌙 Ramadan {ramadanInfo.year}
-            </span>
-          )}
         </Link>
 
         {/* Desktop Navigation */}
@@ -81,22 +93,26 @@ const Navbar = () => {
             <Link
               key={item.path}
               to={item.path}
-              className={`nav-item relative ${location.pathname === item.path ? 'active' : ''} ${
-                item.label === 'ramadan' ? 'ramadan-item' : ''
+              className={`nav-item relative ${
+                location.pathname === item.path ? 'active' : ''
+              } ${
+                item.label === 'ramadan' ? 'ramadan-nav-item' : ''
               }`}
             >
               <i className={item.icon}></i>
-              <span className="font-bangla">{t(`nav.${item.label}`)}</span>
-              {item.badge && item.label === 'ramadan' && (
+              <span>{t(`nav.${item.label}`) || txt[item.label] || item.label}</span>
+              
+              {/* Special badge for Ramadan */}
+              {item.label === 'ramadan' && (
                 <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-emerald-500 text-white text-xs rounded-full animate-pulse">
-                  {item.badge}
+                  {ramadanInfo.day}
                 </span>
               )}
             </Link>
           ))}
         </div>
 
-        {/* Right Side - Language Switcher & Auth */}
+        {/* Right Side */}
         <div className="flex items-center gap-4">
           <LanguageSwitcher />
           
@@ -118,7 +134,7 @@ const Navbar = () => {
 
               {/* Profile Dropdown */}
               {profileDropdown && (
-                <div className="absolute right-0 mt-2 w-48 glass rounded-lg shadow-xl py-2 border border-white/10">
+                <div className="absolute right-0 mt-2 w-56 glass rounded-lg shadow-xl py-2 border border-white/10">
                   <Link
                     to="/profile"
                     onClick={() => setProfileDropdown(false)}
@@ -128,6 +144,21 @@ const Navbar = () => {
                     <span>{t('nav.profile') || 'Profile'}</span>
                   </Link>
                   
+                  {/* Ramadan in dropdown (also shown) */}
+                  {isRamadan && (
+                    <Link
+                      to="/ramadan"
+                      onClick={() => setProfileDropdown(false)}
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-white/10 transition text-emerald-400"
+                    >
+                      <i className="fas fa-moon w-5"></i>
+                      <span>{txt.ramadanFull}</span>
+                      <span className="ml-auto text-xs bg-emerald-500/20 px-2 py-0.5 rounded-full">
+                        Day {ramadanInfo.day}
+                      </span>
+                    </Link>
+                  )}
+                  
                   <Link
                     to="/settings"
                     onClick={() => setProfileDropdown(false)}
@@ -136,20 +167,6 @@ const Navbar = () => {
                     <i className="fas fa-cog text-[#d4af37] w-5"></i>
                     <span>{t('nav.settings') || 'Settings'}</span>
                   </Link>
-                  
-                  {isRamadan && (
-                    <Link
-                      to="/ramadan"
-                      onClick={() => setProfileDropdown(false)}
-                      className="flex items-center gap-3 px-4 py-2 hover:bg-white/10 transition text-emerald-400"
-                    >
-                      <i className="fas fa-moon w-5"></i>
-                      <span>{t('nav.ramadan') || 'Ramadan'}</span>
-                      <span className="ml-auto text-xs bg-emerald-500/20 px-2 py-0.5 rounded-full">
-                        Day {ramadanInfo.day}
-                      </span>
-                    </Link>
-                  )}
                   
                   <div className="border-t border-white/10 my-1"></div>
                   
@@ -202,21 +219,21 @@ const Navbar = () => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setIsOpen(false)}
-                className={`nav-item w-full ${location.pathname === item.path ? 'active' : ''} ${
-                  item.label === 'ramadan' ? 'text-emerald-400' : ''
-                }`}
+                className={`nav-item w-full flex items-center justify-between ${
+                  location.pathname === item.path ? 'active' : ''
+                } ${item.label === 'ramadan' ? 'text-emerald-400' : ''}`}
               >
-                <div className="flex items-center justify-between w-full">
-                  <span>
-                    <i className={`${item.icon} w-6`}></i>
-                    <span className="ml-2 font-bangla">{t(`nav.${item.label}`)}</span>
+                <span>
+                  <i className={`${item.icon} w-6`}></i>
+                  <span className="ml-2">
+                    {t(`nav.${item.label}`) || txt[item.label] || item.label}
                   </span>
-                  {item.badge && item.label === 'ramadan' && (
-                    <span className="px-2 py-1 bg-emerald-500 text-white text-xs rounded-full">
-                      {item.badge}
-                    </span>
-                  )}
-                </div>
+                </span>
+                {item.label === 'ramadan' && (
+                  <span className="px-2 py-1 bg-emerald-500 text-white text-xs rounded-full">
+                    Day {ramadanInfo.day}
+                  </span>
+                )}
               </Link>
             ))}
             

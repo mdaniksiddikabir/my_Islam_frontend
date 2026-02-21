@@ -13,10 +13,11 @@ const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
   
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();  // ✅ FIXED: added language
   const { user, isAuthenticated, logout } = useAuth();
   const { isRamadan, ramadanInfo } = useRamadan();
 
+  // ... rest of your code
   // Base navigation items
   const baseNavItems = [
     { path: '/', icon: 'fas fa-home', label: 'home' },

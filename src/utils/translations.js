@@ -252,6 +252,12 @@ export const enTranslations = {
     loggedOut: 'Logged out successfully',
     passwordReset: 'Password reset email sent'
   },
+  // English
+  nav: {
+  // ... existing nav items
+    ramadan: 'Ramadan'
+},
+  
 
   // ... after errors section
   footer: {
@@ -516,5 +522,13 @@ export const bnTranslations = {
   // ... after errors section
   footer: {
    rights: 'সর্বস্বত্ব সংরক্ষিত'
-}
+  },
+  // Add to your translations:
+
+
+// Bangla
+  nav: {
+  // ... existing nav items
+    ramadan: 'রমজান'
+ }
 };

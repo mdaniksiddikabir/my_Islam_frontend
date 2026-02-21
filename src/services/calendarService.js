@@ -1,3 +1,4 @@
+// src/services/calendarService.js
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
@@ -56,11 +57,16 @@ export const convertDate = async (from, to, date) => {
   }
 };
 
-// Get today's Hijri date
+// Get today's Hijri date - FIXED for your API response
 export const getCurrentHijri = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/api/calendar/today`);
-    return response.data.data;
+    // Your API returns { success: true, data: { hijri: {...}, gregorian: {...} } }
+    // Return just the hijri part
+    if (response.data && response.data.success && response.data.data) {
+      return response.data.data.hijri; // { day: 3, month: 9, monthName: "رمضان", year: 1447 }
+    }
+    return null;
   } catch (error) {
     console.error('Error fetching today\'s Hijri date:', error);
     throw error;

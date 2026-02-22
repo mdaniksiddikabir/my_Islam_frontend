@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import DateConverter from '../components/calendar/DateConverter';
 
 const CalendarPage = () => {
-  const { t, currentLanguage } = useLanguage(); // 'bn' or 'en'
+  const { t, currentLanguage } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [calendarType, setCalendarType] = useState('hijri');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -28,6 +28,10 @@ const CalendarPage = () => {
   const [currentHijri, setCurrentHijri] = useState(null);
   const [currentHijriError, setCurrentHijriError] = useState(false);
   const [userCountry, setUserCountry] = useState(null);
+  
+  // MANUAL OFFSET FOR YOUR AREA
+  // If API shows 5th but actual is 4th, set offset to -1
+  const DATE_OFFSET = -1; // Change this based on your location
   
   // Converter states
   const [convertFrom, setConvertFrom] = useState('gregorian');
@@ -71,42 +75,88 @@ const CalendarPage = () => {
     getUserCountry();
   }, []);
 
+  // When currentHijri is loaded, set the calendar to show that month
+  useEffect(() => {
+    if (currentHijri && !currentHijriError) {
+      // Convert Hijri date to Gregorian to set the calendar view
+      // This is a simplified approach - in production you'd want proper conversion
+      console.log('Current Hijri with offset:', getAdjustedHijriDate());
+    }
+  }, [currentHijri]);
+
   // Load calendar data when date or type changes
   useEffect(() => {
     loadCalendarData();
-    if (calendarType === 'hijri') {
-      loadEvents();
-    }
   }, [calendarType, currentDate]);
 
+  // Load events when currentHijri changes
+  useEffect(() => {
+    if (currentHijri) {
+      loadEvents();
+    }
+  }, [currentHijri]);
+
   const getUserCountry = () => {
-    // Get country from IP or browser locale
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      // Extract country from timezone (e.g., "Asia/Dhaka" -> "Bangladesh")
       const region = timezone.split('/')[0];
       const city = timezone.split('/')[1];
       
       if (region === 'Asia') {
         if (city === 'Dhaka') setUserCountry('Bangladesh');
-        else if (city === 'Riyadh') setUserCountry('Saudi Arabia');
-        else setUserCountry(region);
+        else if (city === 'Kolkata') setUserCountry('India');
+        else if (city === 'Karachi') setUserCountry('Pakistan');
+        else setUserCountry(city || region);
       } else {
         setUserCountry(region);
       }
     } catch (error) {
-      console.error('Error getting country:', error);
       setUserCountry('Unknown');
     }
+  };
+
+  // Function to apply offset to Hijri date
+  const getAdjustedHijriDate = () => {
+    if (!currentHijri) return null;
+    
+    let adjustedDay = currentHijri.day + DATE_OFFSET;
+    let adjustedMonth = currentHijri.month;
+    let adjustedYear = currentHijri.year;
+    
+    // Handle month boundary
+    if (adjustedDay < 1) {
+      adjustedMonth -= 1;
+      if (adjustedMonth < 1) {
+        adjustedMonth = 12;
+        adjustedYear -= 1;
+      }
+      // Get last day of previous month (simplified - assume 30 days)
+      adjustedDay = 30 + adjustedDay;
+    } else if (adjustedDay > 30) {
+      adjustedMonth += 1;
+      if (adjustedMonth > 12) {
+        adjustedMonth = 1;
+        adjustedYear += 1;
+      }
+      adjustedDay = adjustedDay - 30;
+    }
+    
+    return {
+      day: adjustedDay,
+      month: adjustedMonth,
+      year: adjustedYear,
+      monthName: hijriMonths.en[adjustedMonth - 1]
+    };
   };
 
   const fetchCurrentHijri = async () => {
     try {
       setCurrentHijriError(false);
       const data = await getCurrentHijri();
-      // data is { day: 3, month: 9, monthName: "رمضان", year: 1447 }
+      // data is { day: 5, month: 9, monthName: "رمضان", year: 1447 }
       setCurrentHijri(data || null);
-      console.log('Current Hijri from API:', data);
+      console.log('Raw API data:', data);
+      console.log('Adjusted date:', getAdjustedHijriDate());
     } catch (error) {
       console.warn('Current Hijri date API not available:', error);
       setCurrentHijriError(true);
@@ -119,9 +169,17 @@ const CalendarPage = () => {
       setLoading(true);
       
       if (calendarType === 'hijri') {
-        // For Hijri calendar
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
+        // For Hijri calendar, we need to get the correct month
+        // If we have currentHijri, try to show that month
+        let year = currentDate.getFullYear();
+        let month = currentDate.getMonth() + 1;
+        
+        // If this is initial load and we have currentHijri, adjust to show correct month
+        if (currentHijri && !hijriDate) {
+          // This is simplified - you'd need proper Hijri-Gregorian conversion
+          // For now, we'll keep using current date but highlight correctly
+          console.log('Loading Hijri calendar for month:', currentHijri.month);
+        }
         
         const data = await getHijriCalendar(year, month);
         setHijriDate(data || null);
@@ -155,17 +213,17 @@ const CalendarPage = () => {
 
   const loadEvents = async () => {
     try {
-      // Load events for current Hijri year
       const year = currentHijri?.year || 1447;
       const data = await getIslamicEvents(year);
       setEvents(data || []);
       
-      // Generate upcoming events
-      if (data && data.length > 0 && currentHijri) {
+      // Generate upcoming events using adjusted date
+      const adjustedDate = getAdjustedHijriDate();
+      if (data && data.length > 0 && adjustedDate) {
         const upcoming = data
           .filter(event => {
-            if (event.hijriMonth > currentHijri.month) return true;
-            if (event.hijriMonth === currentHijri.month && event.hijriDay >= currentHijri.day) return true;
+            if (event.hijriMonth > adjustedDate.month) return true;
+            if (event.hijriMonth === adjustedDate.month && event.hijriDay >= adjustedDate.day) return true;
             return false;
           })
           .sort((a, b) => {
@@ -192,6 +250,7 @@ const CalendarPage = () => {
     const days = [];
     const firstDay = data.firstDay || 0;
     const totalDays = data.daysInMonth || 30;
+    const adjustedDate = getAdjustedHijriDate();
 
     // Add empty cells for days before month start
     for (let i = 0; i < firstDay; i++) {
@@ -202,11 +261,11 @@ const CalendarPage = () => {
     for (let d = 1; d <= totalDays; d++) {
       const dayData = data.days?.find(day => day?.day === d) || {};
       
-      // Check if this day is today using API data
-      const isToday = currentHijri && 
-                     d === currentHijri.day && 
-                     data.month === currentHijri.month &&
-                     data.year === currentHijri.year;
+      // Check if this day is today using ADJUSTED date
+      const isToday = adjustedDate && 
+                     d === adjustedDate.day && 
+                     data.month === adjustedDate.month &&
+                     data.year === adjustedDate.year;
 
       // Find events for this day
       const dayEvents = events.filter(event => 
@@ -241,7 +300,7 @@ const CalendarPage = () => {
     const firstDay = data.firstDay || 0;
     const totalDays = data.daysInMonth || 30;
 
-    // Add empty cells for days before month start
+    // Add empty cells
     for (let i = 0; i < firstDay; i++) {
       days.push({ empty: true });
     }
@@ -280,9 +339,7 @@ const CalendarPage = () => {
 
   const handleToday = () => {
     setCurrentDate(new Date());
-    if (calendarType === 'hijri') {
-      fetchCurrentHijri(); // Refresh today's Hijri date
-    }
+    fetchCurrentHijri(); // Refresh today's Hijri date
     toast.success(
       currentLanguage === 'bn' 
         ? 'আজকের তারিখে ফিরে গেছেন' 
@@ -347,12 +404,15 @@ const CalendarPage = () => {
     return <Loader />;
   }
 
-  // Check if current month is Ramadan
-  const isRamadan = currentHijri?.month === 9;
+  // Get adjusted date for display
+  const adjustedHijri = getAdjustedHijriDate();
+  
+  // Check if current month is Ramadan using adjusted date
+  const isRamadan = adjustedHijri?.month === 9;
 
-  // Calculate days remaining in Ramadan
-  const ramadanDaysRemaining = isRamadan && currentHijri?.day 
-    ? 30 - currentHijri.day 
+  // Calculate days remaining in Ramadan using adjusted date
+  const ramadanDaysRemaining = isRamadan && adjustedHijri?.day 
+    ? 30 - adjustedHijri.day 
     : 0;
 
   return (
@@ -382,15 +442,20 @@ const CalendarPage = () => {
           )}
         </div>
         
-        {/* Current Hijri Date */}
-        {currentHijri && !currentHijriError && (
+        {/* Current Hijri Date - showing ADJUSTED date */}
+        {adjustedHijri && !currentHijriError && (
           <div className="mt-4 inline-block bg-gradient-to-r from-[#d4af37]/20 to-[#d4af37]/5 px-6 py-4 rounded-lg border-l-4 border-[#d4af37]">
             <p className="text-sm text-white/50 mb-1 flex items-center gap-2">
               <i className="fas fa-moon text-[#d4af37]"></i>
               {currentLanguage === 'en' ? 'Today\'s Hijri Date:' : 'আজকের হিজরি তারিখ:'}
+              {DATE_OFFSET !== 0 && (
+                <span className="text-xs bg-[#d4af37]/30 px-2 py-0.5 rounded-full">
+                  {currentLanguage === 'bn' ? 'স্থানীয় সমন্বয়' : 'Local adjusted'}
+                </span>
+              )}
             </p>
             <p className="text-2xl font-bold text-[#d4af37]">
-              {formatNumber(currentHijri.day)} {hijriMonths[currentLanguage]?.[currentHijri.month - 1] || hijriMonths.en[currentHijri.month - 1]} {formatNumber(currentHijri.year)} AH
+              {formatNumber(adjustedHijri.day)} {hijriMonths[currentLanguage]?.[adjustedHijri.month - 1] || hijriMonths.en[adjustedHijri.month - 1]} {formatNumber(adjustedHijri.year)} AH
             </p>
             <p className="text-sm text-white/50 mt-1">
               {new Date().toLocaleDateString(currentLanguage === 'bn' ? 'bn-BD' : 'en-US', { 
@@ -400,11 +465,18 @@ const CalendarPage = () => {
                 day: 'numeric' 
               })}
             </p>
+            {DATE_OFFSET !== 0 && (
+              <p className="text-xs text-white/30 mt-1">
+                {currentLanguage === 'bn' 
+                  ? `API তে দেখায়: ${currentHijri?.day} রমজান` 
+                  : `API shows: ${currentHijri?.day} Ramadan`}
+              </p>
+            )}
           </div>
         )}
       </div>
 
-      {/* Ramadan Banner */}
+      {/* Ramadan Banner - using adjusted date */}
       {isRamadan && (
         <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30 border-l-4 border-emerald-500">
           <div className="flex items-center gap-4">
@@ -417,8 +489,8 @@ const CalendarPage = () => {
               </h2>
               <p className="text-sm text-white/70">
                 {currentLanguage === 'bn' 
-                  ? `রমজান ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} দিন বাকি`
-                  : `Ramadan ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} days remaining`
+                  ? `রমজান ${formatNumber(adjustedHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} দিন বাকি`
+                  : `Ramadan ${formatNumber(adjustedHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} days remaining`
                 }
               </p>
             </div>
@@ -431,13 +503,13 @@ const CalendarPage = () => {
                 {currentLanguage === 'bn' ? 'রমজানের অগ্রগতি' : 'Ramadan Progress'}
               </span>
               <span className="text-emerald-400">
-                {Math.round(((currentHijri?.day || 1) / 30) * 100)}%
+                {Math.round(((adjustedHijri?.day || 1) / 30) * 100)}%
               </span>
             </div>
             <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-500"
-                style={{ width: `${((currentHijri?.day || 1) / 30) * 100}%` }}
+                style={{ width: `${((adjustedHijri?.day || 1) / 30) * 100}%` }}
               />
             </div>
           </div>
@@ -479,7 +551,6 @@ const CalendarPage = () => {
           <button
             onClick={handlePrevMonth}
             className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
-            aria-label="Previous month"
           >
             <i className="fas fa-chevron-left"></i>
           </button>
@@ -501,7 +572,6 @@ const CalendarPage = () => {
           <button
             onClick={handleNextMonth}
             className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
-            aria-label="Next month"
           >
             <i className="fas fa-chevron-right"></i>
           </button>
@@ -515,9 +585,9 @@ const CalendarPage = () => {
           >
             <i className="fas fa-calendar-check"></i>
             {currentLanguage === 'bn' ? 'আজকের তারিখ' : 'Today'}
-            {currentHijri && calendarType === 'hijri' && (
+            {adjustedHijri && calendarType === 'hijri' && (
               <span className="text-xs bg-[#d4af37]/30 px-2 py-1 rounded-full">
-                {formatNumber(currentHijri.day)} {hijriMonths.en[currentHijri.month - 1]?.substring(0, 3)}
+                {formatNumber(adjustedHijri.day)} {hijriMonths.en[adjustedHijri.month - 1]?.substring(0, 3)}
               </span>
             )}
           </button>
@@ -567,7 +637,7 @@ const CalendarPage = () => {
         </div>
       </div>
 
-      {/* Upcoming Events Section */}
+      {/* Upcoming Events Section - using adjusted date */}
       {upcomingEvents.length > 0 && (
         <div className="glass p-6">
           <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
@@ -576,52 +646,59 @@ const CalendarPage = () => {
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {upcomingEvents.map((event, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white/5 p-4 rounded-lg hover:bg-white/10 transition cursor-pointer border-l-2 border-[#d4af37]"
-                onClick={() => {
-                  // Find and select this date in calendar
-                  const dayToFind = calendarDays.find(d => 
-                    !d.empty && 
-                    d.day === event.hijriDay && 
-                    hijriDate?.month === event.hijriMonth
-                  );
-                  if (dayToFind) {
-                    handleDateClick(dayToFind);
-                  }
-                }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h4 className="font-bold text-[#d4af37]">
-                      {currentLanguage === 'bn' ? event.nameBn : event.name}
-                    </h4>
-                    <p className="text-sm text-white/70 mt-1 line-clamp-2">
-                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
-                    </p>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-white/50">
-                      <span>{formatNumber(event.hijriDay)} {hijriMonths.en[event.hijriMonth - 1]}</span>
-                      {event.gregorianDate && (
-                        <>
-                          <span>•</span>
-                          <span>{event.gregorianDate}</span>
-                        </>
-                      )}
+            {upcomingEvents.map((event, index) => {
+              const daysUntil = adjustedHijri?.month === event.hijriMonth
+                ? event.hijriDay - (adjustedHijri?.day || 0)
+                : (event.hijriMonth - (adjustedHijri?.month || 0)) * 30 + event.hijriDay - (adjustedHijri?.day || 0);
+              
+              return (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="bg-white/5 p-4 rounded-lg hover:bg-white/10 transition cursor-pointer border-l-2 border-[#d4af37]"
+                  onClick={() => {
+                    const dayToFind = calendarDays.find(d => 
+                      !d.empty && 
+                      d.day === event.hijriDay && 
+                      hijriDate?.month === event.hijriMonth
+                    );
+                    if (dayToFind) {
+                      handleDateClick(dayToFind);
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-[#d4af37]">
+                        {currentLanguage === 'bn' ? event.nameBn : event.name}
+                      </h4>
+                      <p className="text-sm text-white/70 mt-1 line-clamp-2">
+                        {currentLanguage === 'bn' ? event.descriptionBn : event.description}
+                      </p>
+                      <div className="flex items-center gap-2 mt-2 text-xs text-white/50">
+                        <span>{formatNumber(event.hijriDay)} {hijriMonths.en[event.hijriMonth - 1]}</span>
+                        {event.gregorianDate && (
+                          <>
+                            <span>•</span>
+                            <span>{event.gregorianDate}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-[#d4af37]/20 px-2 py-1 rounded text-xs whitespace-nowrap">
+                      {daysUntil > 0 
+                        ? `${daysUntil} ${currentLanguage === 'bn' ? 'দিন' : 'days'}`
+                        : daysUntil === 0
+                        ? currentLanguage === 'bn' ? 'আজ' : 'Today'
+                        : currentLanguage === 'bn' ? 'অতীত' : 'Past'
+                      }
                     </div>
                   </div>
-                  <div className="bg-[#d4af37]/20 px-2 py-1 rounded text-xs whitespace-nowrap">
-                    {event.hijriMonth === currentHijri?.month 
-                      ? `${event.hijriDay - (currentHijri?.day || 0)} ${currentLanguage === 'bn' ? 'দিন' : 'days'}`
-                      : `${event.hijriMonth - (currentHijri?.month || 0)} ${currentLanguage === 'bn' ? 'মাস' : 'months'}`
-                    }
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       )}

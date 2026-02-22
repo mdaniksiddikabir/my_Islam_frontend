@@ -3,124 +3,88 @@ import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes } from '../../services/prayerService';
 import { useLocation } from '../../hooks/useLocations';
-import { format, addDays } from 'date-fns';
+import hijriService from '../../services/hijriService';
+import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
-import moment from 'moment-hijri';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-
-// Register Bangla font for PDF
-const registerBanglaFont = (doc) => {
-  doc.addFileToVFS('Nikosh.ttf', 'src/Fonts/Nikosh.ttf'); // You'll need to add Bangla font
-  doc.addFont('Nikosh.ttf', 'Nikosh', 'normal');
-  doc.setFont('Nikosh');
-};
 
 const RamadanTable = () => {
   const { language, t } = useLanguage();
   const { location, loading: locationLoading, updateLocation } = useLocation();
   const [ramadanDays, setRamadanDays] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [ramadanInfo, setRamadanInfo] = useState({
+    year: null,
+    currentDay: null
+  });
+  const [todayInfo, setTodayInfo] = useState(null);
   const [searchCity, setSearchCity] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showCitySearch, setShowCitySearch] = useState(false);
-  const [todayInfo, setTodayInfo] = useState(null);
-  const [ramadanInfo, setRamadanInfo] = useState({
-    year: null,
-    startDate: null,
-    endDate: null,
-    currentDay: null
-  });
 
-  // Fixed weekday names in English (not changing with language)
-  const weekdays = [
-    'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-  ];
-
-  const banglaWeekdays = [
-    'রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'
-  ];
+  const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
   useEffect(() => {
-    initializeRamadan();
-  }, []);
-
-  useEffect(() => {
-    if (ramadanInfo.startDate && location) {
-      generateFullTimeTable();
+    if (location) {
+      generateRamadanCalendar();
     }
-  }, [ramadanInfo, location]);
+  }, [location]);
 
-  const initializeRamadan = () => {
-    const today = moment();
-    const hijriMonth = today.iMonth() + 1;
-    const hijriYear = today.iYear();
-    
-    const FORCE_RAMADAN_YEAR = 1446;
-    const year = FORCE_RAMADAN_YEAR || hijriYear;
-    
-    const startOfRamadan = moment().iYear(year).iMonth(8).iDate(1);
-    const endOfRamadan = moment().iYear(year).iMonth(8).iDate(30);
-    
-    setRamadanInfo({
-      year: year,
-      startDate: startOfRamadan.toDate(),
-      endDate: endOfRamadan.toDate(),
-      currentDay: today.iMonth() + 1 === 9 ? today.iDate() : 15
-    });
-  };
-
-  const generateFullTimeTable = async () => {
+  const generateRamadanCalendar = async () => {
     try {
       setLoading(true);
+      
+      // Get location-based Ramadan calendar from API
+      const calendarData = await hijriService.getRamadanCalendar(
+        location.lat,
+        location.lng
+      );
+      
+      setRamadanInfo({
+        year: calendarData.year,
+        currentDay: calendarData.currentDay
+      });
+      
+      // Get prayer times for each day
       const days = [];
       let todayData = null;
       
-      for (let i = 0; i < 30; i++) {
-        const currentDate = addDays(ramadanInfo.startDate, i);
-        const dateStr = format(currentDate, 'yyyy-MM-dd');
+      for (const day of calendarData.days) {
+        const dateStr = format(day.gregorian, 'yyyy-MM-dd');
         
         let sehriTime = '--:--';
         let iftarTime = '--:--';
         
-        if (location) {
-          try {
-            const prayerData = await getPrayerTimes(
-              location.lat,
-              location.lng,
-              4,
-              dateStr
-            );
-            sehriTime = prayerData?.timings?.Fajr || '--:--';
-            iftarTime = prayerData?.timings?.Maghrib || '--:--';
-          } catch (error) {
-            console.log(`Using default times for day ${i + 1}`);
-            sehriTime = calculateDefaultSehri(i);
-            iftarTime = calculateDefaultIftar(i);
-          }
-        } else {
-          sehriTime = calculateDefaultSehri(i);
-          iftarTime = calculateDefaultIftar(i);
+        try {
+          const prayerData = await getPrayerTimes(
+            location.lat,
+            location.lng,
+            4,
+            dateStr
+          );
+          sehriTime = prayerData?.timings?.Fajr || '--:--';
+          iftarTime = prayerData?.timings?.Maghrib || '--:--';
+        } catch (error) {
+          console.log(`Using fallback times for day ${day.day}`);
         }
 
-        const sehri12 = convertTo12Hour(sehriTime);
-        const iftar12 = convertTo12Hour(iftarTime);
-        
         const dayData = {
-          day: i + 1,
-          gregorianDate: currentDate,
-          hijriDate: `${i + 1} Ramadan ${ramadanInfo.year}`,
-          weekday: weekdays[currentDate.getDay()], // Fixed English weekday
-          shortWeekday: weekdays[currentDate.getDay()].substring(0, 3),
-          sehri: sehri12, // Only 12h format with AM/PM
-          iftar: iftar12, // Only 12h format with AM/PM
-          isToday: i + 1 === ramadanInfo.currentDay,
-          isPast: ramadanInfo.currentDay ? i + 1 < ramadanInfo.currentDay : false,
+          day: day.day,
+          gregorianDate: day.gregorian,
+          hijriDate: day.hijri.format,
+          weekday: weekdays[day.gregorian.getDay()],
+          shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+          sehri: convertTo12Hour(sehriTime),
+          iftar: convertTo12Hour(iftarTime),
+          isToday: day.isToday,
+          isPast: day.gregorian < new Date(),
           fastingHours: calculateFastingHours(sehriTime, iftarTime),
         };
 
-        if (dayData.isToday) {
+        if (day.isToday) {
           todayData = dayData;
         }
 
@@ -129,30 +93,13 @@ const RamadanTable = () => {
 
       setTodayInfo(todayData);
       setRamadanDays(days);
+      
     } catch (error) {
-      console.error('Error generating Ramadan timetable:', error);
+      console.error('Error generating Ramadan calendar:', error);
       toast.error('Failed to load Ramadan schedule');
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateDefaultSehri = (day) => {
-    const baseHour = 5;
-    const baseMinute = 0;
-    const totalMinutes = (baseHour * 60 + baseMinute) - day * 2;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  };
-
-  const calculateDefaultIftar = (day) => {
-    const baseHour = 18;
-    const baseMinute = 15;
-    const totalMinutes = (baseHour * 60 + baseMinute) + day * 1;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
   };
 
   const calculateFastingHours = (sehri, iftar) => {
@@ -177,13 +124,6 @@ const RamadanTable = () => {
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-  };
-
-  const formatDate = (date) => {
-    if (!date) return '';
-    return format(date, 'dd MMM yyyy', {
-      locale: language === 'bn' ? bn : enUS
-    });
   };
 
   const formatDayMonth = (date) => {
@@ -211,7 +151,8 @@ const RamadanTable = () => {
         name: item.display_name.split(',')[0],
         fullName: item.display_name,
         lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon)
+        lng: parseFloat(item.lon),
+        country: item.display_name.split(',').pop().trim()
       })));
     } catch (error) {
       console.error('Error searching city:', error);
@@ -228,66 +169,50 @@ const RamadanTable = () => {
   };
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
-    
-    // Set font based on language
-    if (language === 'bn') {
-      try {
-        registerBanglaFont(doc);
-      } catch (e) {
-        console.log('Bangla font not available, using default');
-      }
+    try {
+      const doc = new jsPDF();
+      
+      doc.setFontSize(18);
+      doc.setTextColor(212, 175, 55);
+      
+      const title = language === 'bn' 
+        ? `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`
+        : `Ramadan ${ramadanInfo.year} - 30 Days Schedule`;
+      doc.text(title, 14, 22);
+      
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      const locationText = location ? `${location.city}, ${location.country}` : 'Location not set';
+      doc.text(locationText, 14, 30);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 35);
+      
+      const tableColumn = ['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting'];
+      
+      const tableRows = ramadanDays.map(day => [
+        day.day,
+        formatDayMonth(day.gregorianDate),
+        day.hijriDate,
+        day.shortWeekday,
+        day.sehri,
+        day.iftar,
+        day.fastingHours
+      ]);
+      
+      doc.autoTable({
+        head: [tableColumn],
+        body: tableRows,
+        startY: 40,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
+        alternateRowStyles: { fillColor: [240, 240, 240] }
+      });
+      
+      doc.save(`Ramadan-${ramadanInfo.year}-Schedule.pdf`);
+      toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast.error('PDF generation failed');
     }
-    
-    // Add title
-    doc.setFontSize(18);
-    doc.setTextColor(212, 175, 55);
-    doc.text(language === 'bn' ? `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি` : `Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 14, 22);
-    
-    // Add location and date
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    const locationText = location ? `${location.city}, ${location.country}` : 'Location not set';
-    doc.text(locationText, 14, 30);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 35);
-    
-    // Prepare table data
-    const tableColumn = [
-      language === 'bn' ? 'রোজা' : 'Day',
-      language === 'bn' ? 'তারিখ' : 'Date',
-      language === 'bn' ? 'হিজরি' : 'Hijri',
-      language === 'bn' ? 'বার' : 'Weekday',
-      language === 'bn' ? 'সেহরি' : 'Sehri',
-      language === 'bn' ? 'ইফতার' : 'Iftar',
-      language === 'bn' ? 'রোজার সময়' : 'Fasting'
-    ];
-    
-    const tableRows = ramadanDays.map(day => [
-      day.day,
-      formatDayMonth(day.gregorianDate),
-      day.hijriDate,
-      language === 'bn' ? banglaWeekdays[new Date(day.gregorianDate).getDay()] : day.weekday,
-      day.sehri,
-      day.iftar,
-      day.fastingHours
-    ]);
-    
-    // Add table
-    doc.autoTable({
-      head: [tableColumn],
-      body: tableRows,
-      startY: 40,
-      styles: { 
-        fontSize: 8,
-        font: language === 'bn' ? 'Nikosh' : 'helvetica'
-      },
-      headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
-      alternateRowStyles: { fillColor: [240, 240, 240] }
-    });
-    
-    // Save PDF
-    doc.save(`Ramadan-${ramadanInfo.year}-Schedule.pdf`);
-    toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
   };
 
   const translations = {
@@ -314,9 +239,7 @@ const RamadanTable = () => {
       changeCity: 'Change City',
       searchCity: 'Search for your city',
       search: 'Search',
-      currentLocation: 'Using your current location',
       locationError: 'Could not get your location. Using default times.',
-      refreshLocation: 'Refresh',
       todaysSchedule: 'Today\'s Schedule',
       sehriTime: 'Sehri Time',
       iftarTime: 'Iftar Time',
@@ -344,9 +267,7 @@ const RamadanTable = () => {
       changeCity: 'শহর পরিবর্তন',
       searchCity: 'আপনার শহর খুঁজুন',
       search: 'অনুসন্ধান',
-      currentLocation: 'আপনার বর্তমান অবস্থান ব্যবহার করা হচ্ছে',
       locationError: 'আপনার অবস্থান পাওয়া যায়নি। ডিফল্ট সময় ব্যবহার করা হচ্ছে।',
-      refreshLocation: 'রিফ্রেশ',
       todaysSchedule: 'আজকের সময়সূচি',
       sehriTime: 'সেহরির সময়',
       iftarTime: 'ইফতারের সময়',
@@ -372,7 +293,7 @@ const RamadanTable = () => {
       animate={{ opacity: 1 }}
       className="space-y-6"
     >
-      {/* Header with Location Controls */}
+      {/* Header */}
       <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -382,34 +303,32 @@ const RamadanTable = () => {
             <p className="text-white/80">{txt.subtitle}</p>
           </div>
           
-          <div className="flex flex-col items-end gap-2">
-            {location ? (
-              <div className="glass px-4 py-2 flex items-center gap-3">
-                <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
-                <span>{location.city}, {location.country}</span>
-                <button
-                  onClick={() => setShowCitySearch(!showCitySearch)}
-                  className="text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
-                >
-                  {txt.changeCity}
-                </button>
-              </div>
-            ) : (
-              <div className="glass px-4 py-2 text-yellow-400">
-                <i className="fas fa-exclamation-triangle mr-2"></i>
-                {txt.locationError}
-                <button
-                  onClick={() => setShowCitySearch(true)}
-                  className="ml-2 text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
-                >
-                  {txt.searchCity}
-                </button>
-              </div>
-            )}
-          </div>
+          {location ? (
+            <div className="glass px-4 py-2 flex items-center gap-3">
+              <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
+              <span>{location.city}, {location.country}</span>
+              <button
+                onClick={() => setShowCitySearch(true)}
+                className="text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
+              >
+                {txt.changeCity}
+              </button>
+            </div>
+          ) : (
+            <div className="glass px-4 py-2 text-yellow-400">
+              <i className="fas fa-exclamation-triangle mr-2"></i>
+              {txt.locationError}
+              <button
+                onClick={() => setShowCitySearch(true)}
+                className="ml-2 text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
+              >
+                {txt.searchCity}
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Today's Highlight - Before Table */}
+        {/* Today's Highlight */}
         {todayInfo && (
           <div className="mt-6 glass p-6 bg-[#d4af37]/20 border-2 border-[#d4af37]">
             <h3 className="text-xl font-bold text-[#d4af37] mb-4 flex items-center gap-2">
@@ -420,12 +339,10 @@ const RamadanTable = () => {
               <div className="bg-black/20 p-4 rounded-lg">
                 <p className="text-sm text-white/50 mb-1">{txt.sehriTime}</p>
                 <p className="text-3xl font-bold text-emerald-400">{todayInfo.sehri}</p>
-                <p className="text-xs text-white/30 mt-1">{txt.sehriNote}</p>
               </div>
               <div className="bg-black/20 p-4 rounded-lg">
                 <p className="text-sm text-white/50 mb-1">{txt.iftarTime}</p>
                 <p className="text-3xl font-bold text-orange-400">{todayInfo.iftar}</p>
-                <p className="text-xs text-white/30 mt-1">{txt.iftarNote}</p>
               </div>
             </div>
           </div>
@@ -489,7 +406,7 @@ const RamadanTable = () => {
                     onClick={() => selectCity(city)}
                     className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition"
                   >
-                    {city.name}
+                    {city.name}, {city.country}
                   </button>
                 ))}
               </div>

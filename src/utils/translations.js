@@ -254,9 +254,19 @@ export const enTranslations = {
   },
   // English
   nav: {
-  // ... existing nav items
-    ramadan: 'Ramadan'
-},
+  home: 'Home',
+  prayer: 'Prayer',
+  qibla: 'Qibla',
+  quran: 'Quran',
+  calendar: 'Calendar',
+  duas: 'Duas',
+  settings: 'Settings',
+  profile: 'Profile',
+  login: 'Login',
+  register: 'Register',
+  logout: 'Logout',
+  ramadan: 'Ramadan'  // Add this if you have Ramadan link
+  },
   
 
   // ... after errors section
@@ -519,16 +529,26 @@ export const bnTranslations = {
     loggedOut: 'লগআউট সফল হয়েছে',
     passwordReset: 'পাসওয়ার্ড রিসেট ইমেইল পাঠানো হয়েছে'
   },
+  nav: {
+  home: 'হোম',
+  prayer: 'নামাজ',
+  qibla: 'কিবলা',
+  quran: 'কোরআন',
+  calendar: 'ক্যালেন্ডার',
+  duas: 'দোয়া',
+  settings: 'সেটিংস',
+  profile: 'প্রোফাইল',
+  login: 'লগইন',
+  register: 'নিবন্ধন',
+  logout: 'লগআউট',
+  ramadan: 'রমজান'  // Add this if you have Ramadan link
+  },
   // ... after errors section
   footer: {
    rights: 'সর্বস্বত্ব সংরক্ষিত'
-  },
+  }
   // Add to your translations:
 
 
-// Bangla
-  nav: {
-  // ... existing nav items
-    ramadan: 'রমজান'
- }
+
 };

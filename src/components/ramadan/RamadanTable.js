@@ -8,7 +8,7 @@ import { bn, enUS } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
 import moment from 'moment-hijri';
 
-const RamadanTimeTable = () => {
+const RamadanTable = () => {
   const { language, t } = useLanguage();
   const { location } = useLocation();
   const [ramadanDays, setRamadanDays] = useState([]);

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations';
+import { useLocation } from '../../hooks/useLocation';
 import hijriService from '../../services/hijriService';
 import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
@@ -10,21 +10,20 @@ import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-// Bangla font registration for PDF
-const registerBanglaFont = (doc) => {
-  try {
-    doc.addFileToVFS('Nikosh.ttf', '...'); // You'll need to add the font file
-    doc.addFont('Nikosh.ttf', 'Nikosh', 'normal');
-    doc.setFont('Nikosh');
-  } catch (error) {
-    console.log('Bangla font not available, using default');
-    doc.setFont('helvetica');
+// Simple PDF font handling - no external font files needed
+const setupPDFFont = (doc, language) => {
+  // Always use helvetica which is built-in
+  doc.setFont('helvetica');
+  
+  // For Bangla, we'll use a slightly larger font for better readability
+  if (language === 'bn') {
+    doc.setFontSize(16); // Slightly larger for Bangla text
   }
 };
 
 const RamadanTable = () => {
   const { language, t } = useLanguage();
-  const { location: userLocation, loading: locationLoading, updateLocation } = useLocation();
+  const { location: userLocation, loading: locationLoading, error: locationError, updateLocation } = useLocation();
   const [ramadanDays, setRamadanDays] = useState([]);
   const [ramadanInfo, setRamadanInfo] = useState({
     year: 1447,
@@ -41,23 +40,81 @@ const RamadanTable = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [showCitySearch, setShowCitySearch] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
+  const [locationPermission, setLocationPermission] = useState('prompt');
+  const [locationRetryCount, setLocationRetryCount] = useState(0);
   
-  // Offset info state
-  const [offsetInfo, setOffsetInfo] = useState({
-    offset: 0,
-    description: '',
-    group: ''
-  });
+  // Default location (Dhaka, Bangladesh as fallback)
+  const defaultLocation = {
+    city: 'Dhaka',
+    country: 'Bangladesh',
+    lat: 23.8103,
+    lng: 90.4125
+  };
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
+  // Check location permission on mount
+  useEffect(() => {
+    checkLocationPermission();
+  }, []);
+
+  // Load data when location is available or after retry
   useEffect(() => {
     if (userLocation) {
+      console.log('Location detected:', userLocation);
       setSelectedLocation(userLocation);
       loadRamadanData(userLocation);
+    } else if (locationError && locationRetryCount < 2) {
+      // If location error, retry after a delay
+      const timer = setTimeout(() => {
+        console.log('Retrying location detection...');
+        setLocationRetryCount(prev => prev + 1);
+        window.location.reload(); // Simple reload to retry
+      }, 2000);
+      return () => clearTimeout(timer);
+    } else if (!userLocation && !locationLoading && locationRetryCount >= 2) {
+      // After 2 retries, use default location
+      console.log('Using default location (Dhaka)');
+      setSelectedLocation(defaultLocation);
+      updateLocation(defaultLocation);
+      toast.info('Using default location (Dhaka)');
     }
-  }, [userLocation]);
+  }, [userLocation, locationError, locationRetryCount]);
+
+  const checkLocationPermission = () => {
+    if (!navigator.geolocation) {
+      setLocationPermission('unsupported');
+      toast.error('Geolocation is not supported by your browser');
+      return;
+    }
+
+    // Check if permission is already granted/denied
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
+        setLocationPermission(result.state);
+        
+        if (result.state === 'denied') {
+          toast.error('Location access denied. Please enable location or search for your city.');
+          setShowCitySearch(true); // Show search modal automatically
+        }
+      });
+    }
+  };
+
+  const requestLocationPermission = () => {
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocationPermission('granted');
+        toast.success('Location access granted');
+      },
+      (error) => {
+        setLocationPermission('denied');
+        toast.error('Could not get your location. Please search for your city.');
+        setShowCitySearch(true);
+      }
+    );
+  };
 
   const loadRamadanData = async (location) => {
     try {
@@ -111,8 +168,8 @@ const RamadanTable = () => {
           hijriDate: day.hijri.format,
           weekday: weekdays[day.gregorian.getDay()],
           shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
-          sehri: convertTo12Hour(sehriTime), // Only 12h format with AM/PM
-          iftar: convertTo12Hour(iftarTime), // Only 12h format with AM/PM
+          sehri: convertTo12Hour(sehriTime),
+          iftar: convertTo12Hour(iftarTime),
           isToday: day.isToday,
           isPast: day.gregorian < new Date(),
           fastingHours: calculateFastingHours(sehriTime, iftarTime),
@@ -166,12 +223,6 @@ const RamadanTable = () => {
     });
   };
 
-  const formatDate = (date) => {
-    return format(date, 'dd MMM yyyy', {
-      locale: language === 'bn' ? bn : enUS
-    });
-  };
-
   const getDayStatusClass = (day) => {
     if (day.isToday) return 'bg-[#d4af37]/20 border-2 border-[#d4af37]';
     if (day.isPast) return 'opacity-60';
@@ -211,19 +262,18 @@ const RamadanTable = () => {
     loadRamadanData(city);
   };
 
-  // PDF Export function with Bangla support
+  const retryLocation = () => {
+    setLocationRetryCount(0);
+    window.location.reload();
+  };
+
+  // PDF Export function - simplified, no external fonts needed
   const exportToPDF = () => {
     try {
       const doc = new jsPDF();
       
-      // Set font based on language
-      if (language === 'bn') {
-        try {
-          registerBanglaFont(doc);
-        } catch (e) {
-          console.log('Using default font for Bangla');
-        }
-      }
+      // Setup font (using built-in fonts only)
+      setupPDFFont(doc, language);
       
       // Title
       doc.setFontSize(18);
@@ -248,7 +298,7 @@ const RamadanTable = () => {
       // Offset info
       doc.text(`Ramadan Start: ${offsetInfo.group}`, 14, 40);
       
-      // Table headers - Simplified with only AM/PM times
+      // Table headers
       const tableColumn = language === 'bn' 
         ? ['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']
         : ['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting'];
@@ -258,8 +308,8 @@ const RamadanTable = () => {
         formatDayMonth(day.gregorianDate),
         day.hijriDate,
         language === 'bn' ? banglaWeekdays[day.gregorianDate.getDay()] : day.shortWeekday,
-        day.sehri, // Only AM/PM format
-        day.iftar, // Only AM/PM format
+        day.sehri,
+        day.iftar,
         day.fastingHours
       ]);
       
@@ -269,7 +319,7 @@ const RamadanTable = () => {
         startY: 45,
         styles: { 
           fontSize: 8,
-          font: language === 'bn' ? 'Nikosh' : 'helvetica'
+          font: 'helvetica' // Always use helvetica for reliability
         },
         headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
         alternateRowStyles: { fillColor: [240, 240, 240] }
@@ -287,8 +337,15 @@ const RamadanTable = () => {
         ? 'ইফতার সময়ে ইফতার করুন'
         : 'Break fast at Iftar time';
       
-      doc.text(sehriNote, 14, finalY);
-      doc.text(iftarNote, 14, finalY + 5);
+      // For Bangla text in PDF, we'll use a slightly different approach
+      if (language === 'bn') {
+        // For Bangla, we'll just use the English version in PDF to avoid font issues
+        doc.text('Stop eating before Sehri time', 14, finalY);
+        doc.text('Break fast at Iftar time', 14, finalY + 5);
+      } else {
+        doc.text(sehriNote, 14, finalY);
+        doc.text(iftarNote, 14, finalY + 5);
+      }
       
       doc.save(`Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`);
       toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
@@ -325,7 +382,7 @@ const RamadanTable = () => {
       search: 'Search',
       currentLocation: 'Using your current location',
       locationError: 'Could not get your location. Please search for your city.',
-      refreshLocation: 'Refresh',
+      refreshLocation: 'Refresh Location',
       todaysSchedule: 'Today\'s Schedule',
       sehriTime: 'Sehri Time',
       iftarTime: 'Iftar Time',
@@ -337,6 +394,10 @@ const RamadanTable = () => {
       close: 'Close',
       selectCity: 'Select a city',
       loading: 'Loading...',
+      locationPermissionDenied: 'Location access denied. Please search for your city.',
+      locationUnsupported: 'Geolocation not supported. Please search for your city.',
+      retryLocation: 'Retry Location',
+      usingDefaultLocation: 'Using default location (Dhaka)',
     },
     bn: {
       title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
@@ -363,7 +424,7 @@ const RamadanTable = () => {
       search: 'অনুসন্ধান',
       currentLocation: 'আপনার বর্তমান অবস্থান ব্যবহার করা হচ্ছে',
       locationError: 'আপনার অবস্থান পাওয়া যায়নি। অনুগ্রহ করে আপনার শহর খুঁজুন।',
-      refreshLocation: 'রিফ্রেশ',
+      refreshLocation: 'অবস্থান রিফ্রেশ',
       todaysSchedule: 'আজকের সময়সূচি',
       sehriTime: 'সেহরির সময়',
       iftarTime: 'ইফতারের সময়',
@@ -375,17 +436,63 @@ const RamadanTable = () => {
       close: 'বন্ধ',
       selectCity: 'শহর নির্বাচন করুন',
       loading: 'লোড হচ্ছে...',
+      locationPermissionDenied: 'অবস্থান অনুমতি দেওয়া হয়নি। অনুগ্রহ করে আপনার শহর খুঁজুন।',
+      locationUnsupported: 'জিওলোকেশন সমর্থিত নয়। অনুগ্রহ করে আপনার শহর খুঁজুন।',
+      retryLocation: 'পুনরায় চেষ্টা করুন',
+      usingDefaultLocation: 'ডিফল্ট অবস্থান (ঢাকা) ব্যবহার করা হচ্ছে',
     }
   };
 
   const txt = translations[language] || translations.en;
 
-  if (loading || locationLoading) {
+  // Show permission request if needed
+  const showLocationPermissionUI = () => {
+    if (locationPermission === 'denied') {
+      return (
+        <div className="glass p-4 mb-4 bg-yellow-900/30 border border-yellow-500/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <i className="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+              <span className="text-yellow-500">{txt.locationPermissionDenied}</span>
+            </div>
+            <button
+              onClick={() => setShowCitySearch(true)}
+              className="px-3 py-1 bg-[#d4af37] text-[#1a3f54] rounded-lg text-sm hover:bg-[#c4a037] transition"
+            >
+              {txt.searchCity}
+            </button>
+          </div>
+        </div>
+      );
+    }
+    if (locationPermission === 'prompt' && !selectedLocation) {
+      return (
+        <div className="glass p-4 mb-4 bg-blue-900/30 border border-blue-500/50">
+          <div className="flex items-center justify-between">
+            <div>
+              <i className="fas fa-info-circle text-blue-500 mr-2"></i>
+              <span className="text-blue-500">Please allow location access for accurate prayer times</span>
+            </div>
+            <button
+              onClick={requestLocationPermission}
+              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
+            >
+              Allow Location
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  if (loading && !selectedLocation) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <i className="fas fa-moon text-4xl text-[#d4af37] animate-pulse mb-4"></i>
           <p className="text-white/70">{txt.loading}</p>
+          {locationLoading && <p className="text-sm text-white/50 mt-2">Detecting your location...</p>}
         </div>
       </div>
     );
@@ -397,6 +504,9 @@ const RamadanTable = () => {
       animate={{ opacity: 1 }}
       className="space-y-6 p-4"
     >
+      {/* Location Permission UI */}
+      {showLocationPermissionUI()}
+
       {/* Header with Location and Search */}
       <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -425,6 +535,13 @@ const RamadanTable = () => {
                 >
                   <i className="fas fa-search mr-1"></i>
                   {txt.changeCity}
+                </button>
+                <button
+                  onClick={retryLocation}
+                  className="text-xs bg-emerald-500/20 px-2 py-1 rounded hover:bg-emerald-500/30 transition"
+                  title={txt.retryLocation}
+                >
+                  <i className="fas fa-sync-alt"></i>
                 </button>
               </div>
             ) : (
@@ -554,7 +671,7 @@ const RamadanTable = () => {
         </div>
       )}
 
-      {/* Full Time Table - Simplified with only AM/PM times */}
+      {/* Full Time Table */}
       <div className="glass p-6 overflow-x-auto">
         <table className="w-full min-w-[700px]">
           <thead>

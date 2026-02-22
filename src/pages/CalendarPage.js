@@ -9,16 +9,12 @@ import {
   getCurrentHijri,
   convertDate 
 } from '../services/calendarService';
-import { getPrayerTimes } from '../services/prayerService';
 import Loader from '../components/common/Loader';
 import toast from 'react-hot-toast';
-import IslamicCalendar from '../components/calendar/IslamicCalendar';
-import GregorianCalendar from '../components/calendar/GregorianCalendar';
 import DateConverter from '../components/calendar/DateConverter';
-import EventList from '../components/calendar/EventList'; // You'll need to create this component
 
 const CalendarPage = () => {
-  const { t, currentLanguage } = useLanguage();
+  const { t, currentLanguage } = useLanguage(); // 'bn' or 'en'
   const [loading, setLoading] = useState(true);
   const [calendarType, setCalendarType] = useState('hijri');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -27,14 +23,10 @@ const CalendarPage = () => {
   const [calendarDays, setCalendarDays] = useState([]);
   const [events, setEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [prayerTimes, setPrayerTimes] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [showConverter, setShowConverter] = useState(false);
-  const [showEvents, setShowEvents] = useState(true);
   const [currentHijri, setCurrentHijri] = useState(null);
   const [currentHijriError, setCurrentHijriError] = useState(false);
-  const [location, setLocation] = useState(null);
-  const [loadingPrayer, setLoadingPrayer] = useState(false);
   const [userCountry, setUserCountry] = useState(null);
   
   // Converter states
@@ -47,7 +39,7 @@ const CalendarPage = () => {
   });
   const [convertResult, setConvertResult] = useState(null);
 
-  // FIXED: Hijri month names - with correct mapping
+  // Hijri month names
   const hijriMonths = {
     en: [
       'Muharram', 'Safar', 'Rabi al-Awwal', 'Rabi al-Thani',
@@ -76,10 +68,10 @@ const CalendarPage = () => {
   // Load current Hijri date on mount
   useEffect(() => {
     fetchCurrentHijri();
-    getUserLocation();
+    getUserCountry();
   }, []);
 
-  // FIXED: When calendar type changes, reload data with correct type
+  // Load calendar data when date or type changes
   useEffect(() => {
     loadCalendarData();
     if (calendarType === 'hijri') {
@@ -87,61 +79,24 @@ const CalendarPage = () => {
     }
   }, [calendarType, currentDate]);
 
-  // Load prayer times when location changes
-  useEffect(() => {
-    if (location) {
-      fetchPrayerTimes();
-    }
-  }, [location, currentDate]);
-
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-          
-          // Get country from coordinates
-          fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${position.coords.latitude}&lon=${position.coords.longitude}&accept-language=${currentLanguage}`)
-            .then(response => response.json())
-            .then(data => {
-              if (data.address && data.address.country) {
-                setUserCountry(data.address.country);
-              }
-            })
-            .catch(error => console.error('Error getting country:', error));
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          setLocation({ lat: 21.4225, lng: 39.8262 });
-          setUserCountry('Saudi Arabia');
-          toast.error(
-            currentLanguage === 'bn' 
-              ? 'অবস্থান পাওয়া যায়নি, মক্কার সময় দেখানো হচ্ছে' 
-              : 'Location not found, showing Makkah times'
-          );
-        }
-      );
-    } else {
-      setLocation({ lat: 21.4225, lng: 39.8262 });
-      setUserCountry('Saudi Arabia');
-    }
-  };
-
-  const fetchPrayerTimes = async () => {
+  const getUserCountry = () => {
+    // Get country from IP or browser locale
     try {
-      setLoadingPrayer(true);
-      if (!location) return;
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // Extract country from timezone (e.g., "Asia/Dhaka" -> "Bangladesh")
+      const region = timezone.split('/')[0];
+      const city = timezone.split('/')[1];
       
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const times = await getPrayerTimes(location.lat, location.lng, dateStr);
-      setPrayerTimes(times);
+      if (region === 'Asia') {
+        if (city === 'Dhaka') setUserCountry('Bangladesh');
+        else if (city === 'Riyadh') setUserCountry('Saudi Arabia');
+        else setUserCountry(region);
+      } else {
+        setUserCountry(region);
+      }
     } catch (error) {
-      console.error('Error fetching prayer times:', error);
-    } finally {
-      setLoadingPrayer(false);
+      console.error('Error getting country:', error);
+      setUserCountry('Unknown');
     }
   };
 
@@ -149,12 +104,8 @@ const CalendarPage = () => {
     try {
       setCurrentHijriError(false);
       const data = await getCurrentHijri();
-      
-      // FIXED: Check if we need to adjust for Asia
-      // If API returns 5 but actual is 4, we can add an offset parameter
-      // For now, let's assume the API is correct
+      // data is { day: 3, month: 9, monthName: "رمضان", year: 1447 }
       setCurrentHijri(data || null);
-      
       console.log('Current Hijri from API:', data);
     } catch (error) {
       console.warn('Current Hijri date API not available:', error);
@@ -168,7 +119,7 @@ const CalendarPage = () => {
       setLoading(true);
       
       if (calendarType === 'hijri') {
-        // For Hijri calendar, use the current date but we'll highlight today based on API
+        // For Hijri calendar
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth() + 1;
         
@@ -180,7 +131,7 @@ const CalendarPage = () => {
           setCalendarDays([]);
         }
       } else {
-        // For Gregorian calendar, use the current date properly
+        // For Gregorian calendar
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth() + 1;
         
@@ -205,7 +156,7 @@ const CalendarPage = () => {
   const loadEvents = async () => {
     try {
       // Load events for current Hijri year
-      const year = currentHijri?.year || 1447; // Default to 1447 if not available
+      const year = currentHijri?.year || 1447;
       const data = await getIslamicEvents(year);
       setEvents(data || []);
       
@@ -213,7 +164,6 @@ const CalendarPage = () => {
       if (data && data.length > 0 && currentHijri) {
         const upcoming = data
           .filter(event => {
-            // Only show events from current month onwards
             if (event.hijriMonth > currentHijri.month) return true;
             if (event.hijriMonth === currentHijri.month && event.hijriDay >= currentHijri.day) return true;
             return false;
@@ -222,7 +172,7 @@ const CalendarPage = () => {
             if (a.hijriMonth !== b.hijriMonth) return a.hijriMonth - b.hijriMonth;
             return a.hijriDay - b.hijriDay;
           })
-          .slice(0, 5); // Show only next 5 events
+          .slice(0, 5);
         
         setUpcomingEvents(upcoming);
       }
@@ -252,7 +202,7 @@ const CalendarPage = () => {
     for (let d = 1; d <= totalDays; d++) {
       const dayData = data.days?.find(day => day?.day === d) || {};
       
-      // FIXED: Use API data to determine today
+      // Check if this day is today using API data
       const isToday = currentHijri && 
                      d === currentHijri.day && 
                      data.month === currentHijri.month &&
@@ -270,8 +220,6 @@ const CalendarPage = () => {
         events: dayEvents,
         gregorian: dayData.gregorian || '',
         isRamadan: data.month === 9,
-        isSpecial: dayData.isSpecial || false,
-        weekday: dayData.weekday || '',
         hijriDate: {
           day: d,
           month: data.month,
@@ -307,15 +255,11 @@ const CalendarPage = () => {
                      data.month === (today.getMonth() + 1) &&
                      data.year === today.getFullYear();
 
-      // Find corresponding Hijri date for this Gregorian day
-      const hijriForDay = dayData.hijri || null;
-
       days.push({
         day: d,
         isToday,
         weekday: dayData.weekday || weekdays.en[(firstDay + d - 1) % 7],
-        hijri: hijriForDay,
-        events: [] // Gregorian events would go here
+        hijri: dayData.hijri || null
       });
     }
 
@@ -337,8 +281,7 @@ const CalendarPage = () => {
   const handleToday = () => {
     setCurrentDate(new Date());
     if (calendarType === 'hijri') {
-      // Refresh Hijri data
-      fetchCurrentHijri();
+      fetchCurrentHijri(); // Refresh today's Hijri date
     }
     toast.success(
       currentLanguage === 'bn' 
@@ -398,15 +341,6 @@ const CalendarPage = () => {
       return num.toString().split('').map(d => banglaDigits[d] || d).join('');
     }
     return num;
-  };
-
-  const formatTime = (time) => {
-    if (!time) return '';
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
   };
 
   if (loading && !currentHijri) {
@@ -473,45 +407,21 @@ const CalendarPage = () => {
       {/* Ramadan Banner */}
       {isRamadan && (
         <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30 border-l-4 border-emerald-500">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <i className="fas fa-moon text-2xl text-emerald-400"></i>
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-emerald-400">
-                  {currentLanguage === 'bn' ? 'রমজান মোবারক' : 'Ramadan Mubarak'}
-                </h2>
-                <p className="text-sm text-white/70">
-                  {currentLanguage === 'bn' 
-                    ? `রমজান ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} দিন বাকি`
-                    : `Ramadan ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} days remaining`
-                  }
-                </p>
-              </div>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <i className="fas fa-moon text-2xl text-emerald-400"></i>
             </div>
-            
-            {/* Prayer Times */}
-            {prayerTimes && !loadingPrayer && (
-              <div className="flex gap-4">
-                <div className="text-center px-4 py-2 bg-black/20 rounded-lg">
-                  <p className="text-xs text-white/50 mb-1">
-                    {currentLanguage === 'bn' ? 'ফজর' : 'Fajr'}
-                  </p>
-                  <p className="text-lg font-bold text-emerald-400">
-                    {formatTime(prayerTimes.fajr)}
-                  </p>
-                </div>
-                <div className="text-center px-4 py-2 bg-black/20 rounded-lg">
-                  <p className="text-xs text-white/50 mb-1">
-                    {currentLanguage === 'bn' ? 'মাগরিব' : 'Maghrib'}
-                  </p>
-                  <p className="text-lg font-bold text-amber-400">
-                    {formatTime(prayerTimes.maghrib)}
-                  </p>
-                </div>
-              </div>
-            )}
+            <div>
+              <h2 className="text-xl font-bold text-emerald-400">
+                {currentLanguage === 'bn' ? 'রমজান মোবারক' : 'Ramadan Mubarak'}
+              </h2>
+              <p className="text-sm text-white/70">
+                {currentLanguage === 'bn' 
+                  ? `রমজান ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} দিন বাকি`
+                  : `Ramadan ${formatNumber(currentHijri?.day || 1)} | ${formatNumber(ramadanDaysRemaining)} days remaining`
+                }
+              </p>
+            </div>
           </div>
 
           {/* Progress Bar */}
@@ -546,7 +456,7 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-moon"></i>
-            {t('calendar.hijri') || 'Hijri Calendar'}
+            {t('calendar.hijri') || 'Hijri'}
           </button>
           <button
             onClick={() => setCalendarType('gregorian')}
@@ -557,276 +467,235 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-sun"></i>
-            {t('calendar.gregorian') || 'Gregorian Calendar'}
+            {t('calendar.gregorian') || 'Gregorian'}
           </button>
         </div>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar Section - Takes 2/3 of the space on large screens */}
-        <div className="lg:col-span-2">
-          <div className="glass p-6">
-            {/* Month Navigation */}
-            <div className="flex items-center justify-between mb-6">
-              <button
-                onClick={handlePrevMonth}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
-                aria-label="Previous month"
-              >
-                <i className="fas fa-chevron-left"></i>
-              </button>
-              
-              <h2 className="text-2xl font-bold">
-                {calendarType === 'hijri' ? (
-                  <>
-                    {hijriMonths[currentLanguage]?.[(hijriDate?.month || currentDate.getMonth() + 1) - 1] || 
-                     hijriMonths.en[(hijriDate?.month || currentDate.getMonth() + 1) - 1]} {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
-                  </>
-                ) : (
-                  <>
-                    {gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || 
-                     gregorianMonths.en[currentDate.getMonth()]} {formatNumber(currentDate.getFullYear())}
-                  </>
-                )}
-              </h2>
-              
-              <button
-                onClick={handleNextMonth}
-                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
-                aria-label="Next month"
-              >
-                <i className="fas fa-chevron-right"></i>
-              </button>
-            </div>
-
-            {/* Today Button */}
-            <div className="flex justify-center mb-6">
-              <button
-                onClick={handleToday}
-                className="px-4 py-2 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 rounded-full transition flex items-center gap-2"
-              >
-                <i className="fas fa-calendar-check"></i>
-                {currentLanguage === 'bn' ? 'আজকের তারিখ' : 'Today'}
-                {currentHijri && calendarType === 'hijri' && (
-                  <span className="text-xs bg-[#d4af37]/30 px-2 py-1 rounded-full">
-                    {formatNumber(currentHijri.day)} {hijriMonths.en[currentHijri.month - 1]?.substring(0, 3)}
-                  </span>
-                )}
-              </button>
-            </div>
-
-            {/* Weekday Headers */}
-            <div className="grid grid-cols-7 gap-1 mb-2">
-              {weekdays[currentLanguage]?.map((day, index) => (
-                <div key={index} className="text-center text-sm font-medium text-white/50 py-2">
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map((day, index) => {
-                if (day.empty) {
-                  return <div key={`empty-${index}`} className="aspect-square" />;
-                }
-                
-                return (
-                  <button
-                    key={`day-${day.day}`}
-                    onClick={() => handleDateClick(day)}
-                    className={`aspect-square p-2 rounded-lg transition relative group
-                      ${day.isToday 
-                        ? 'bg-[#d4af37] text-[#1a3f54] font-bold ring-2 ring-[#d4af37] ring-offset-2 ring-offset-[#1a3f54]' 
-                        : 'hover:bg-white/10'
-                      }
-                      ${day.events?.length > 0 ? 'bg-opacity-20 bg-[#d4af37]' : ''}
-                    `}
-                  >
-                    <span className="text-lg">{formatNumber(day.day)}</span>
-                    
-                    {/* Event Indicator */}
-                    {day.events?.length > 0 && (
-                      <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
-                        {day.events.slice(0, 3).map((_, i) => (
-                          <div key={i} className="w-1 h-1 rounded-full bg-[#d4af37]" />
-                        ))}
-                      </div>
-                    )}
-                    
-                    {/* Tooltip for events */}
-                    {day.events?.length > 0 && (
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black/90 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition whitespace-nowrap z-10">
-                        {day.events.length} {currentLanguage === 'bn' ? 'টি ইভেন্ট' : 'event(s)'}
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+      {/* Main Calendar Section */}
+      <div className="glass p-6">
+        {/* Month Navigation */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={handlePrevMonth}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
+            aria-label="Previous month"
+          >
+            <i className="fas fa-chevron-left"></i>
+          </button>
+          
+          <h2 className="text-2xl font-bold">
+            {calendarType === 'hijri' ? (
+              <>
+                {hijriMonths[currentLanguage]?.[(hijriDate?.month || currentDate.getMonth() + 1) - 1] || 
+                 hijriMonths.en[(hijriDate?.month || currentDate.getMonth() + 1) - 1]} {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
+              </>
+            ) : (
+              <>
+                {gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || 
+                 gregorianMonths.en[currentDate.getMonth()]} {formatNumber(currentDate.getFullYear())}
+              </>
+            )}
+          </h2>
+          
+          <button
+            onClick={handleNextMonth}
+            className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition flex items-center justify-center"
+            aria-label="Next month"
+          >
+            <i className="fas fa-chevron-right"></i>
+          </button>
         </div>
 
-        {/* Sidebar - Events and Details */}
-        <div className="space-y-6">
-          {/* Upcoming Events Section */}
-          <div className="glass p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl text-[#d4af37] flex items-center gap-2">
-                <i className="fas fa-calendar-alt"></i>
-                {currentLanguage === 'bn' ? 'আগামী ইভেন্ট' : 'Upcoming Events'}
-              </h3>
-              <button
-                onClick={() => setShowEvents(!showEvents)}
-                className="text-white/50 hover:text-white"
-              >
-                <i className={`fas fa-chevron-${showEvents ? 'up' : 'down'}`}></i>
-              </button>
-            </div>
+        {/* Today Button */}
+        <div className="flex justify-center mb-6">
+          <button
+            onClick={handleToday}
+            className="px-4 py-2 bg-[#d4af37]/20 hover:bg-[#d4af37]/30 rounded-full transition flex items-center gap-2"
+          >
+            <i className="fas fa-calendar-check"></i>
+            {currentLanguage === 'bn' ? 'আজকের তারিখ' : 'Today'}
+            {currentHijri && calendarType === 'hijri' && (
+              <span className="text-xs bg-[#d4af37]/30 px-2 py-1 rounded-full">
+                {formatNumber(currentHijri.day)} {hijriMonths.en[currentHijri.month - 1]?.substring(0, 3)}
+              </span>
+            )}
+          </button>
+        </div>
 
-            {showEvents && (
-              <div className="space-y-3">
-                {upcomingEvents.length > 0 ? (
-                  upcomingEvents.map((event, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className="bg-white/5 p-4 rounded-lg hover:bg-white/10 transition cursor-pointer border-l-2 border-[#d4af37]"
-                      onClick={() => {
-                        // Find and highlight this date in calendar
-                        const dayToFind = calendarDays.find(d => 
-                          !d.empty && 
-                          d.day === event.hijriDay && 
-                          hijriDate?.month === event.hijriMonth
-                        );
-                        if (dayToFind) {
-                          handleDateClick(dayToFind);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h4 className="font-bold text-[#d4af37]">
-                            {currentLanguage === 'bn' ? event.nameBn : event.name}
-                          </h4>
-                          <p className="text-sm text-white/70 mt-1">
-                            {currentLanguage === 'bn' ? event.descriptionBn : event.description}
-                          </p>
-                          <div className="flex items-center gap-2 mt-2 text-xs text-white/50">
-                            <span>{formatNumber(event.hijriDay)} {hijriMonths.en[event.hijriMonth - 1]}</span>
-                            <span>•</span>
-                            <span>{event.gregorianDate || ''}</span>
-                          </div>
-                        </div>
-                        <div className="bg-[#d4af37]/20 px-2 py-1 rounded text-xs">
-                          {Math.abs(event.hijriDay - (currentHijri?.day || 0))} {currentLanguage === 'bn' ? 'দিন' : 'days'}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-white/50">
-                    <i className="fas fa-calendar-times text-3xl mb-2"></i>
-                    <p>{currentLanguage === 'bn' ? 'কোন ইভেন্ট নেই' : 'No upcoming events'}</p>
+        {/* Weekday Headers */}
+        <div className="grid grid-cols-7 gap-1 mb-2">
+          {weekdays[currentLanguage]?.map((day, index) => (
+            <div key={index} className="text-center text-sm font-medium text-white/50 py-2">
+              {day}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar Grid */}
+        <div className="grid grid-cols-7 gap-1">
+          {calendarDays.map((day, index) => {
+            if (day.empty) {
+              return <div key={`empty-${index}`} className="aspect-square" />;
+            }
+            
+            return (
+              <button
+                key={`day-${day.day}`}
+                onClick={() => handleDateClick(day)}
+                className={`aspect-square p-2 rounded-lg transition relative group
+                  ${day.isToday 
+                    ? 'bg-[#d4af37] text-[#1a3f54] font-bold ring-2 ring-[#d4af37] ring-offset-2 ring-offset-[#1a3f54]' 
+                    : 'hover:bg-white/10'
+                  }
+                  ${day.events?.length > 0 ? 'bg-opacity-20 bg-[#d4af37]' : ''}
+                `}
+              >
+                <span className="text-lg">{formatNumber(day.day)}</span>
+                
+                {/* Event Indicator */}
+                {day.events?.length > 0 && (
+                  <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 flex gap-0.5">
+                    {day.events.slice(0, 3).map((_, i) => (
+                      <div key={i} className="w-1 h-1 rounded-full bg-[#d4af37]" />
+                    ))}
                   </div>
                 )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Upcoming Events Section */}
+      {upcomingEvents.length > 0 && (
+        <div className="glass p-6">
+          <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
+            <i className="fas fa-calendar-alt"></i>
+            {currentLanguage === 'bn' ? 'আগামী ইভেন্ট' : 'Upcoming Events'}
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingEvents.map((event, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+                className="bg-white/5 p-4 rounded-lg hover:bg-white/10 transition cursor-pointer border-l-2 border-[#d4af37]"
+                onClick={() => {
+                  // Find and select this date in calendar
+                  const dayToFind = calendarDays.find(d => 
+                    !d.empty && 
+                    d.day === event.hijriDay && 
+                    hijriDate?.month === event.hijriMonth
+                  );
+                  if (dayToFind) {
+                    handleDateClick(dayToFind);
+                  }
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-[#d4af37]">
+                      {currentLanguage === 'bn' ? event.nameBn : event.name}
+                    </h4>
+                    <p className="text-sm text-white/70 mt-1 line-clamp-2">
+                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-white/50">
+                      <span>{formatNumber(event.hijriDay)} {hijriMonths.en[event.hijriMonth - 1]}</span>
+                      {event.gregorianDate && (
+                        <>
+                          <span>•</span>
+                          <span>{event.gregorianDate}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="bg-[#d4af37]/20 px-2 py-1 rounded text-xs whitespace-nowrap">
+                    {event.hijriMonth === currentHijri?.month 
+                      ? `${event.hijriDay - (currentHijri?.day || 0)} ${currentLanguage === 'bn' ? 'দিন' : 'days'}`
+                      : `${event.hijriMonth - (currentHijri?.month || 0)} ${currentLanguage === 'bn' ? 'মাস' : 'months'}`
+                    }
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected Date Details */}
+      {selectedDate && selectedDate.day && (
+        <div className="glass p-6">
+          <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
+            <i className="fas fa-info-circle"></i>
+            {currentLanguage === 'bn' ? 'তারিখের বিবরণ' : 'Date Details'}
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-black/20 p-4 rounded-lg">
+              <p className="text-sm text-white/50 mb-1">
+                {selectedDate.type === 'hijri' ? 'Hijri' : 'Gregorian'}
+              </p>
+              <p className="text-xl font-bold">
+                {selectedDate.type === 'hijri' ? (
+                  <>
+                    {formatNumber(selectedDate.day)} {selectedDate.monthName} {formatNumber(selectedDate.year)} AH
+                  </>
+                ) : (
+                  <>
+                    {formatNumber(selectedDate.day)} {selectedDate.monthName} {formatNumber(selectedDate.year)}
+                  </>
+                )}
+              </p>
+              {selectedDate.isToday && (
+                <span className="mt-2 inline-block bg-emerald-500/30 px-2 py-1 rounded-full text-xs">
+                  {currentLanguage === 'bn' ? 'আজ' : 'Today'}
+                </span>
+              )}
+            </div>
+
+            {selectedDate.type === 'hijri' && selectedDate.gregorian && (
+              <div className="bg-black/20 p-4 rounded-lg">
+                <p className="text-sm text-white/50 mb-1">Gregorian</p>
+                <p className="text-xl">{selectedDate.gregorian}</p>
+              </div>
+            )}
+
+            {selectedDate.type === 'gregorian' && selectedDate.hijri && (
+              <div className="bg-black/20 p-4 rounded-lg">
+                <p className="text-sm text-white/50 mb-1">Hijri</p>
+                <p className="text-xl">
+                  {formatNumber(selectedDate.hijri.day)} {hijriMonths.en[selectedDate.hijri.month - 1]} {formatNumber(selectedDate.hijri.year)} AH
+                </p>
               </div>
             )}
           </div>
 
-          {/* Selected Date Details */}
-          {selectedDate && selectedDate.day && (
-            <div className="glass p-6">
-              <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
-                <i className="fas fa-info-circle"></i>
-                {currentLanguage === 'bn' ? 'তারিখের বিবরণ' : 'Date Details'}
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="bg-black/20 p-4 rounded-lg">
-                  <p className="text-sm text-white/50 mb-1">
-                    {selectedDate.type === 'hijri' ? 'Hijri' : 'Gregorian'}
-                  </p>
-                  <p className="text-xl font-bold">
-                    {selectedDate.type === 'hijri' ? (
-                      <>
-                        {formatNumber(selectedDate.day)} {selectedDate.monthName} {formatNumber(selectedDate.year)} AH
-                      </>
-                    ) : (
-                      <>
-                        {formatNumber(selectedDate.day)} {selectedDate.monthName} {formatNumber(selectedDate.year)}
-                      </>
-                    )}
-                  </p>
-                  {selectedDate.isToday && (
-                    <span className="mt-2 inline-block bg-emerald-500/30 px-2 py-1 rounded-full text-xs">
-                      {currentLanguage === 'bn' ? 'আজ' : 'Today'}
-                    </span>
-                  )}
-                </div>
-
-                {selectedDate.type === 'hijri' && selectedDate.gregorian && (
-                  <div className="bg-black/20 p-4 rounded-lg">
-                    <p className="text-sm text-white/50 mb-1">Gregorian</p>
-                    <p className="text-xl">{selectedDate.gregorian}</p>
-                  </div>
-                )}
-
-                {selectedDate.type === 'gregorian' && selectedDate.hijri && (
-                  <div className="bg-black/20 p-4 rounded-lg">
-                    <p className="text-sm text-white/50 mb-1">Hijri</p>
-                    <p className="text-xl">
-                      {formatNumber(selectedDate.hijri.day)} {hijriMonths.en[selectedDate.hijri.month - 1]} {formatNumber(selectedDate.hijri.year)} AH
-                    </p>
-                  </div>
-                )}
-
-                {/* Events on selected date */}
-                {selectedDate.events && selectedDate.events.length > 0 && (
-                  <div className="mt-4">
-                    <h4 className="text-lg mb-2 text-[#d4af37]">
-                      {currentLanguage === 'bn' ? 'ইভেন্টসমূহ' : 'Events'}
-                    </h4>
-                    <div className="space-y-2">
-                      {selectedDate.events.map((event, index) => (
-                        <div key={index} className="bg-[#d4af37]/10 p-3 rounded-lg">
-                          <p className="font-bold">
-                            {currentLanguage === 'bn' ? event.nameBn : event.name}
-                          </p>
-                          <p className="text-sm text-white/70">
-                            {currentLanguage === 'bn' ? event.descriptionBn : event.description}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Prayer Times Card */}
-          {prayerTimes && !loadingPrayer && (
-            <div className="glass p-6">
-              <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
-                <i className="fas fa-mosque"></i>
-                {currentLanguage === 'bn' ? 'আজকের নামাজের সময়' : 'Today\'s Prayer Times'}
-              </h3>
+          {/* Events on selected date */}
+          {selectedDate.events && selectedDate.events.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-lg mb-2 text-[#d4af37]">
+                {currentLanguage === 'bn' ? 'ইভেন্টসমূহ' : 'Events'}
+              </h4>
               <div className="space-y-2">
-                {Object.entries(prayerTimes).map(([name, time]) => (
-                  <div key={name} className="flex justify-between items-center p-2 bg-white/5 rounded">
-                    <span className="capitalize">{name}</span>
-                    <span className="font-mono">{formatTime(time)}</span>
+                {selectedDate.events.map((event, index) => (
+                  <div key={index} className="bg-[#d4af37]/10 p-3 rounded-lg">
+                    <p className="font-bold">
+                      {currentLanguage === 'bn' ? event.nameBn : event.name}
+                    </p>
+                    <p className="text-sm text-white/70">
+                      {currentLanguage === 'bn' ? event.descriptionBn : event.description}
+                    </p>
                   </div>
                 ))}
               </div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Date Converter */}
       <div className="glass p-6">

@@ -204,7 +204,7 @@ class HijriService {
   async getCurrentHijri(location) {
     try {
       // Get base date from API
-      const response = await api.get('/calendar/current-hijri');
+      const response = await api.get('/api/calendar/current-hijri');
       console.log('API Response:', response.data);
       
       // Apply country offset

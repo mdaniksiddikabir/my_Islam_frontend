@@ -1,5 +1,5 @@
 import React from 'react';
-import RamadanCalendar from '../components/ramadan/RamadanTable';
+import RamadanTable from '../components/ramadan/RamadanTable';
 
 const RamadanPage = () => {
   return (

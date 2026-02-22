@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import DateConverter from '../components/calendar/DateConverter';
 
 const CalendarPage = () => {
-  const { t, currentLanguage } = useLanguage();
+  const { t, currentLanguage } = useLanguage(); // 'bn' or 'en'
   const [loading, setLoading] = useState(true);
   const [calendarType, setCalendarType] = useState('hijri');
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -78,9 +78,15 @@ const CalendarPage = () => {
   // When currentHijri is loaded, set the calendar to show that month
   useEffect(() => {
     if (currentHijri && !currentHijriError) {
-      // Convert Hijri date to Gregorian to set the calendar view
-      // This is a simplified approach - in production you'd want proper conversion
-      console.log('Current Hijri with offset:', getAdjustedHijriDate());
+      const adjusted = getAdjustedHijriDate();
+      console.log('Setting calendar to show month:', adjusted.month);
+      
+      // We need to find the Gregorian date that corresponds to this Hijri month
+      // For now, we'll keep the current date but ensure the calendar shows the right month
+      // In a production app, you'd want to convert Hijri to Gregorian
+      
+      // Refresh calendar data to ensure it shows the correct month
+      loadCalendarData();
     }
   }, [currentHijri]);
 
@@ -94,7 +100,7 @@ const CalendarPage = () => {
     if (currentHijri) {
       loadEvents();
     }
-  }, [currentHijri]);
+  }, [currentHijri, currentLanguage]); // Reload when language changes
 
   const getUserCountry = () => {
     try {
@@ -145,7 +151,8 @@ const CalendarPage = () => {
       day: adjustedDay,
       month: adjustedMonth,
       year: adjustedYear,
-      monthName: hijriMonths.en[adjustedMonth - 1]
+      monthName: hijriMonths.en[adjustedMonth - 1],
+      monthNameBn: hijriMonths.bn[adjustedMonth - 1]
     };
   };
 
@@ -169,17 +176,16 @@ const CalendarPage = () => {
       setLoading(true);
       
       if (calendarType === 'hijri') {
-        // For Hijri calendar, we need to get the correct month
-        // If we have currentHijri, try to show that month
-        let year = currentDate.getFullYear();
-        let month = currentDate.getMonth() + 1;
+        // For Hijri calendar, we want to show the current Hijri month
+        // We need to find the corresponding Gregorian year/month
+        // This is a simplified approach - in production you'd want proper conversion
+        const adjustedDate = getAdjustedHijriDate();
         
-        // If this is initial load and we have currentHijri, adjust to show correct month
-        if (currentHijri && !hijriDate) {
-          // This is simplified - you'd need proper Hijri-Gregorian conversion
-          // For now, we'll keep using current date but highlight correctly
-          console.log('Loading Hijri calendar for month:', currentHijri.month);
-        }
+        // Use current date for now, but in production you'd convert Hijri to Gregorian
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1;
+        
+        console.log('Loading Hijri calendar for Gregorian month:', month);
         
         const data = await getHijriCalendar(year, month);
         setHijriDate(data || null);
@@ -420,6 +426,7 @@ const CalendarPage = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
+      dir={currentLanguage === 'bn' ? 'ltr' : 'ltr'}
     >
       {/* Header with Location */}
       <div className="glass p-6">
@@ -427,17 +434,19 @@ const CalendarPage = () => {
           <div>
             <h1 className="text-3xl font-bold mb-2 text-[#d4af37] flex items-center">
               <i className="fas fa-calendar-alt mr-3"></i>
-              {t('calendar.title') || 'Islamic Calendar'}
+              {t('calendar.title') || (currentLanguage === 'bn' ? 'ইসলামিক ক্যালেন্ডার' : 'Islamic Calendar')}
             </h1>
             <p className="text-white/70">
-              {t('calendar.subtitle') || 'Track Islamic dates and events'}
+              {t('calendar.subtitle') || (currentLanguage === 'bn' ? 'ইসলামিক তারিখ এবং ইভেন্ট ট্র্যাক করুন' : 'Track Islamic dates and events')}
             </p>
           </div>
           
           {userCountry && (
             <div className="bg-white/10 px-4 py-2 rounded-full flex items-center gap-2">
               <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
-              <span className="text-sm font-medium">{userCountry}</span>
+              <span className="text-sm font-medium">
+                {currentLanguage === 'bn' ? getBanglaCountryName(userCountry) : userCountry}
+              </span>
             </div>
           )}
         </div>
@@ -455,7 +464,11 @@ const CalendarPage = () => {
               )}
             </p>
             <p className="text-2xl font-bold text-[#d4af37]">
-              {formatNumber(adjustedHijri.day)} {hijriMonths[currentLanguage]?.[adjustedHijri.month - 1] || hijriMonths.en[adjustedHijri.month - 1]} {formatNumber(adjustedHijri.year)} AH
+              {formatNumber(adjustedHijri.day)} {
+                currentLanguage === 'bn' 
+                  ? hijriMonths.bn[adjustedHijri.month - 1]
+                  : hijriMonths.en[adjustedHijri.month - 1]
+              } {formatNumber(adjustedHijri.year)} AH
             </p>
             <p className="text-sm text-white/50 mt-1">
               {new Date().toLocaleDateString(currentLanguage === 'bn' ? 'bn-BD' : 'en-US', { 
@@ -528,7 +541,7 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-moon"></i>
-            {t('calendar.hijri') || 'Hijri'}
+            {currentLanguage === 'bn' ? 'হিজরি' : 'Hijri'}
           </button>
           <button
             onClick={() => setCalendarType('gregorian')}
@@ -539,7 +552,7 @@ const CalendarPage = () => {
             }`}
           >
             <i className="fas fa-sun"></i>
-            {t('calendar.gregorian') || 'Gregorian'}
+            {currentLanguage === 'bn' ? 'গ্রেগরিয়ান' : 'Gregorian'}
           </button>
         </div>
       </div>
@@ -558,13 +571,17 @@ const CalendarPage = () => {
           <h2 className="text-2xl font-bold">
             {calendarType === 'hijri' ? (
               <>
-                {hijriMonths[currentLanguage]?.[(hijriDate?.month || currentDate.getMonth() + 1) - 1] || 
-                 hijriMonths.en[(hijriDate?.month || currentDate.getMonth() + 1) - 1]} {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
+                {currentLanguage === 'bn' 
+                  ? hijriMonths.bn[(hijriDate?.month || currentDate.getMonth() + 1) - 1]
+                  : hijriMonths.en[(hijriDate?.month || currentDate.getMonth() + 1) - 1]
+                } {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
               </>
             ) : (
               <>
-                {gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || 
-                 gregorianMonths.en[currentDate.getMonth()]} {formatNumber(currentDate.getFullYear())}
+                {currentLanguage === 'bn' 
+                  ? gregorianMonths.bn[currentDate.getMonth()]
+                  : gregorianMonths.en[currentDate.getMonth()]
+                } {formatNumber(currentDate.getFullYear())}
               </>
             )}
           </h2>
@@ -587,7 +604,11 @@ const CalendarPage = () => {
             {currentLanguage === 'bn' ? 'আজকের তারিখ' : 'Today'}
             {adjustedHijri && calendarType === 'hijri' && (
               <span className="text-xs bg-[#d4af37]/30 px-2 py-1 rounded-full">
-                {formatNumber(adjustedHijri.day)} {hijriMonths.en[adjustedHijri.month - 1]?.substring(0, 3)}
+                {formatNumber(adjustedHijri.day)} {
+                  currentLanguage === 'bn' 
+                    ? hijriMonths.bn[adjustedHijri.month - 1]?.substring(0, 3)
+                    : hijriMonths.en[adjustedHijri.month - 1]?.substring(0, 3)
+                }
               </span>
             )}
           </button>
@@ -637,7 +658,7 @@ const CalendarPage = () => {
         </div>
       </div>
 
-      {/* Upcoming Events Section - using adjusted date */}
+      {/* Upcoming Events Section - using adjusted date with language support */}
       {upcomingEvents.length > 0 && (
         <div className="glass p-6">
           <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
@@ -678,7 +699,13 @@ const CalendarPage = () => {
                         {currentLanguage === 'bn' ? event.descriptionBn : event.description}
                       </p>
                       <div className="flex items-center gap-2 mt-2 text-xs text-white/50">
-                        <span>{formatNumber(event.hijriDay)} {hijriMonths.en[event.hijriMonth - 1]}</span>
+                        <span>
+                          {formatNumber(event.hijriDay)} {
+                            currentLanguage === 'bn' 
+                              ? hijriMonths.bn[event.hijriMonth - 1]
+                              : hijriMonths.en[event.hijriMonth - 1]
+                          }
+                        </span>
                         {event.gregorianDate && (
                           <>
                             <span>•</span>
@@ -714,7 +741,10 @@ const CalendarPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-black/20 p-4 rounded-lg">
               <p className="text-sm text-white/50 mb-1">
-                {selectedDate.type === 'hijri' ? 'Hijri' : 'Gregorian'}
+                {selectedDate.type === 'hijri' 
+                  ? (currentLanguage === 'bn' ? 'হিজরি' : 'Hijri')
+                  : (currentLanguage === 'bn' ? 'গ্রেগরিয়ান' : 'Gregorian')
+                }
               </p>
               <p className="text-xl font-bold">
                 {selectedDate.type === 'hijri' ? (
@@ -736,16 +766,24 @@ const CalendarPage = () => {
 
             {selectedDate.type === 'hijri' && selectedDate.gregorian && (
               <div className="bg-black/20 p-4 rounded-lg">
-                <p className="text-sm text-white/50 mb-1">Gregorian</p>
+                <p className="text-sm text-white/50 mb-1">
+                  {currentLanguage === 'bn' ? 'গ্রেগরিয়ান' : 'Gregorian'}
+                </p>
                 <p className="text-xl">{selectedDate.gregorian}</p>
               </div>
             )}
 
             {selectedDate.type === 'gregorian' && selectedDate.hijri && (
               <div className="bg-black/20 p-4 rounded-lg">
-                <p className="text-sm text-white/50 mb-1">Hijri</p>
+                <p className="text-sm text-white/50 mb-1">
+                  {currentLanguage === 'bn' ? 'হিজরি' : 'Hijri'}
+                </p>
                 <p className="text-xl">
-                  {formatNumber(selectedDate.hijri.day)} {hijriMonths.en[selectedDate.hijri.month - 1]} {formatNumber(selectedDate.hijri.year)} AH
+                  {formatNumber(selectedDate.hijri.day)} {
+                    currentLanguage === 'bn' 
+                      ? hijriMonths.bn[selectedDate.hijri.month - 1]
+                      : hijriMonths.en[selectedDate.hijri.month - 1]
+                  } {formatNumber(selectedDate.hijri.year)} AH
                 </p>
               </div>
             )}
@@ -782,7 +820,7 @@ const CalendarPage = () => {
         >
           <h3 className="text-xl text-[#d4af37] flex items-center gap-2">
             <i className="fas fa-exchange-alt"></i>
-            {t('calendar.dateConverter') || 'Date Converter'}
+            {currentLanguage === 'bn' ? 'তারিখ রূপান্তর' : 'Date Converter'}
           </h3>
           <i className={`fas fa-chevron-${showConverter ? 'up' : 'down'} text-[#d4af37]`}></i>
         </button>
@@ -797,11 +835,93 @@ const CalendarPage = () => {
             onToChange={setConvertTo}
             onDateChange={setConvertInput}
             onConvert={handleConvert}
+            currentLanguage={currentLanguage}
           />
         )}
       </div>
     </motion.div>
   );
+};
+
+// Helper function to get Bengali country names
+const getBanglaCountryName = (country) => {
+  const countryMap = {
+    'Bangladesh': 'বাংলাদেশ',
+    'India': 'ভারত',
+    'Pakistan': 'পাকিস্তান',
+    'Saudi Arabia': 'সৌদি আরব',
+    'UAE': 'সংযুক্ত আরব আমিরাত',
+    'USA': 'মার্কিন যুক্তরাষ্ট্র',
+    'UK': 'যুক্তরাজ্য',
+    'Canada': 'কানাডা',
+    'Australia': 'অস্ট্রেলিয়া',
+    'Malaysia': 'মালয়েশিয়া',
+    'Indonesia': 'ইন্দোনেশিয়া',
+    'Turkey': 'তুরস্ক',
+    'Egypt': 'মিশর',
+    'Jordan': 'জর্ডান',
+    'Syria': 'সিরিয়া',
+    'Iraq': 'ইরাক',
+    'Iran': 'ইরান',
+    'Afghanistan': 'আফগানিস্তান',
+    'Nepal': 'নেপাল',
+    'Bhutan': 'ভুটান',
+    'Myanmar': 'মায়ানমার',
+    'Thailand': 'থাইল্যান্ড',
+    'Singapore': 'সিঙ্গাপুর',
+    'China': 'চীন',
+    'Japan': 'জাপান',
+    'South Korea': 'দক্ষিণ কোরিয়া',
+    'Russia': 'রাশিয়া',
+    'Germany': 'জার্মানি',
+    'France': 'ফ্রান্স',
+    'Italy': 'ইতালি',
+    'Spain': 'স্পেন',
+    'Portugal': 'পর্তুগাল',
+    'Netherlands': 'নেদারল্যান্ডস',
+    'Belgium': 'বেলজিয়াম',
+    'Switzerland': 'সুইজারল্যান্ড',
+    'Austria': 'অস্ট্রিয়া',
+    'Sweden': 'সুইডেন',
+    'Norway': 'নরওয়ে',
+    'Denmark': 'ডেনমার্ক',
+    'Finland': 'ফিনল্যান্ড',
+    'Greece': 'গ্রীস',
+    'Poland': 'পোল্যান্ড',
+    'Ukraine': 'ইউক্রেন',
+    'Romania': 'রোমানিয়া',
+    'Hungary': 'হাঙ্গেরি',
+    'Czech Republic': 'চেক প্রজাতন্ত্র',
+    'Slovakia': 'স্লোভাকিয়া',
+    'Bulgaria': 'বুলগেরিয়া',
+    'Serbia': 'সার্বিয়া',
+    'Croatia': 'ক্রোয়েশিয়া',
+    'Bosnia': 'বসনিয়া',
+    'Albania': 'আলবেনিয়া',
+    'Kosovo': 'কসোভো',
+    'Morocco': 'মরক্কো',
+    'Algeria': 'আলজেরিয়া',
+    'Tunisia': 'তিউনিসিয়া',
+    'Libya': 'লিবিয়া',
+    'Sudan': 'সুদান',
+    'Ethiopia': 'ইথিওপিয়া',
+    'Somalia': 'সোমালিয়া',
+    'Kenya': 'কেনিয়া',
+    'Tanzania': 'তানজানিয়া',
+    'Uganda': 'উগান্ডা',
+    'Nigeria': 'নাইজেরিয়া',
+    'Ghana': 'ঘানা',
+    'South Africa': 'দক্ষিণ আফ্রিকা',
+    'Brazil': 'ব্রাজিল',
+    'Argentina': 'আর্জেন্টিনা',
+    'Chile': 'চিলি',
+    'Peru': 'পেরু',
+    'Colombia': 'কলম্বিয়া',
+    'Venezuela': 'ভেনেজুয়েলা',
+    'Mexico': 'মেক্সিকো'
+  };
+  
+  return countryMap[country] || country;
 };
 
 export default CalendarPage;

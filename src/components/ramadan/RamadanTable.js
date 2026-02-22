@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocation'; // Fixed import path
+import { useLocation } from '../../hooks/useLocations'; // Fixed import path
 import { format, addDays } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';

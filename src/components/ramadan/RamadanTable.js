@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations';
+import { useLocation } from '../../hooks/useLocation';
 import hijriService from '../../services/hijriService';
 import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
@@ -10,111 +10,42 @@ import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-// Simple PDF font handling - no external font files needed
-const setupPDFFont = (doc, language) => {
-  // Always use helvetica which is built-in
-  doc.setFont('helvetica');
-  
-  // For Bangla, we'll use a slightly larger font for better readability
-  if (language === 'bn') {
-    doc.setFontSize(16); // Slightly larger for Bangla text
-  }
-};
-
 const RamadanTable = () => {
   const { language, t } = useLanguage();
-  const { location: userLocation, loading: locationLoading, error: locationError, updateLocation } = useLocation();
+  const { location: userLocation, loading: locationLoading, updateLocation } = useLocation();
   const [ramadanDays, setRamadanDays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [todayInfo, setTodayInfo] = useState(null);
+  
+  // ✅ FIX 1: offsetInfo is defined here (fixes line 528 error)
+  const [offsetInfo, setOffsetInfo] = useState({
+    offset: 0,
+    description: '',
+    group: ''
+  });
+  
   const [ramadanInfo, setRamadanInfo] = useState({
     year: 1447,
     currentDay: null,
     startDate: null,
-    endDate: null,
-    offset: 0
+    endDate: null
   });
-  const [loading, setLoading] = useState(true);
-  const [todayInfo, setTodayInfo] = useState(null);
   
   // Search state
   const [searchCity, setSearchCity] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [showCitySearch, setShowCitySearch] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [locationPermission, setLocationPermission] = useState('prompt');
-  const [locationRetryCount, setLocationRetryCount] = useState(0);
-  
-  // Default location (Dhaka, Bangladesh as fallback)
-  const defaultLocation = {
-    city: 'Dhaka',
-    country: 'Bangladesh',
-    lat: 23.8103,
-    lng: 90.4125
-  };
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
-  // Check location permission on mount
-  useEffect(() => {
-    checkLocationPermission();
-  }, []);
-
-  // Load data when location is available or after retry
   useEffect(() => {
     if (userLocation) {
-      console.log('Location detected:', userLocation);
       setSelectedLocation(userLocation);
       loadRamadanData(userLocation);
-    } else if (locationError && locationRetryCount < 2) {
-      // If location error, retry after a delay
-      const timer = setTimeout(() => {
-        console.log('Retrying location detection...');
-        setLocationRetryCount(prev => prev + 1);
-        window.location.reload(); // Simple reload to retry
-      }, 2000);
-      return () => clearTimeout(timer);
-    } else if (!userLocation && !locationLoading && locationRetryCount >= 2) {
-      // After 2 retries, use default location
-      console.log('Using default location (Dhaka)');
-      setSelectedLocation(defaultLocation);
-      updateLocation(defaultLocation);
-      toast.info('Using default location (Dhaka)');
     }
-  }, [userLocation, locationError, locationRetryCount]);
-
-  const checkLocationPermission = () => {
-    if (!navigator.geolocation) {
-      setLocationPermission('unsupported');
-      toast.error('Geolocation is not supported by your browser');
-      return;
-    }
-
-    // Check if permission is already granted/denied
-    if (navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' }).then((result) => {
-        setLocationPermission(result.state);
-        
-        if (result.state === 'denied') {
-          toast.error('Location access denied. Please enable location or search for your city.');
-          setShowCitySearch(true); // Show search modal automatically
-        }
-      });
-    }
-  };
-
-  const requestLocationPermission = () => {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setLocationPermission('granted');
-        toast.success('Location access granted');
-      },
-      (error) => {
-        setLocationPermission('denied');
-        toast.error('Could not get your location. Please search for your city.');
-        setShowCitySearch(true);
-      }
-    );
-  };
+  }, [userLocation]);
 
   const loadRamadanData = async (location) => {
     try {
@@ -128,14 +59,14 @@ const RamadanTable = () => {
       const description = hijriService.getOffsetDescription(location);
       const group = offset === 0 ? 'Group 1 (Feb 18 Start)' : 'Group 2 (Feb 19 Start)';
       
+      // ✅ FIX 2: setting offsetInfo here
       setOffsetInfo({ offset, description, group });
       
       setRamadanInfo({
         year: calendarData.year,
         currentDay: calendarData.currentDay,
         startDate: calendarData.startDate,
-        endDate: calendarData.endDate,
-        offset: calendarData.offset
+        endDate: calendarData.endDate
       });
       
       // Get prayer times for each day
@@ -262,18 +193,10 @@ const RamadanTable = () => {
     loadRamadanData(city);
   };
 
-  const retryLocation = () => {
-    setLocationRetryCount(0);
-    window.location.reload();
-  };
-
-  // PDF Export function - simplified, no external fonts needed
+  // PDF Export function
   const exportToPDF = () => {
     try {
       const doc = new jsPDF();
-      
-      // Setup font (using built-in fonts only)
-      setupPDFFont(doc, language);
       
       // Title
       doc.setFontSize(18);
@@ -284,7 +207,7 @@ const RamadanTable = () => {
         : `Ramadan ${ramadanInfo.year} - 30 Days Schedule`;
       doc.text(title, 14, 22);
       
-      // Location and offset info
+      // Location info
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       
@@ -292,11 +215,7 @@ const RamadanTable = () => {
         ? `${selectedLocation.city}, ${selectedLocation.country}`
         : 'Location not set';
       doc.text(locationText, 14, 30);
-      
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 35);
-      
-      // Offset info
-      doc.text(`Ramadan Start: ${offsetInfo.group}`, 14, 40);
       
       // Table headers
       const tableColumn = language === 'bn' 
@@ -316,43 +235,18 @@ const RamadanTable = () => {
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
-        startY: 45,
-        styles: { 
-          fontSize: 8,
-          font: 'helvetica' // Always use helvetica for reliability
-        },
+        startY: 40,
+        styles: { fontSize: 8 },
         headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
         alternateRowStyles: { fillColor: [240, 240, 240] }
       });
-      
-      // Add footer with notes
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      
-      const sehriNote = language === 'bn' 
-        ? 'সেহরি সময়ের আগে খাওয়া শেষ করুন'
-        : 'Stop eating before Sehri time';
-      const iftarNote = language === 'bn'
-        ? 'ইফতার সময়ে ইফতার করুন'
-        : 'Break fast at Iftar time';
-      
-      // For Bangla text in PDF, we'll use a slightly different approach
-      if (language === 'bn') {
-        // For Bangla, we'll just use the English version in PDF to avoid font issues
-        doc.text('Stop eating before Sehri time', 14, finalY);
-        doc.text('Break fast at Iftar time', 14, finalY + 5);
-      } else {
-        doc.text(sehriNote, 14, finalY);
-        doc.text(iftarNote, 14, finalY + 5);
-      }
       
       doc.save(`Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`);
       toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
       
     } catch (error) {
       console.error('PDF generation error:', error);
-      toast.error(language === 'bn' ? 'পিডিএফ তৈরি করতে সমস্যা হয়েছে' : 'PDF generation failed');
+      toast.error('PDF generation failed');
     }
   };
 
@@ -380,24 +274,10 @@ const RamadanTable = () => {
       changeCity: 'Change City',
       searchCity: 'Search for your city',
       search: 'Search',
-      currentLocation: 'Using your current location',
-      locationError: 'Could not get your location. Please search for your city.',
-      refreshLocation: 'Refresh Location',
-      todaysSchedule: 'Today\'s Schedule',
-      sehriTime: 'Sehri Time',
-      iftarTime: 'Iftar Time',
-      offset: 'Ramadan Start',
-      group1: 'Group 1 (Feb 18 Start)',
-      group2: 'Group 2 (Feb 19 Start)',
       searchPlaceholder: 'Enter city name...',
       searchResults: 'Search Results',
       close: 'Close',
-      selectCity: 'Select a city',
       loading: 'Loading...',
-      locationPermissionDenied: 'Location access denied. Please search for your city.',
-      locationUnsupported: 'Geolocation not supported. Please search for your city.',
-      retryLocation: 'Retry Location',
-      usingDefaultLocation: 'Using default location (Dhaka)',
     },
     bn: {
       title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
@@ -422,77 +302,21 @@ const RamadanTable = () => {
       changeCity: 'শহর পরিবর্তন',
       searchCity: 'আপনার শহর খুঁজুন',
       search: 'অনুসন্ধান',
-      currentLocation: 'আপনার বর্তমান অবস্থান ব্যবহার করা হচ্ছে',
-      locationError: 'আপনার অবস্থান পাওয়া যায়নি। অনুগ্রহ করে আপনার শহর খুঁজুন।',
-      refreshLocation: 'অবস্থান রিফ্রেশ',
-      todaysSchedule: 'আজকের সময়সূচি',
-      sehriTime: 'সেহরির সময়',
-      iftarTime: 'ইফতারের সময়',
-      offset: 'রমজান শুরু',
-      group1: 'গ্রুপ ১ (১৮ ফেব্রুয়ারি)',
-      group2: 'গ্রুপ ২ (১৯ ফেব্রুয়ারি)',
       searchPlaceholder: 'শহরের নাম লিখুন...',
       searchResults: 'অনুসন্ধানের ফলাফল',
       close: 'বন্ধ',
-      selectCity: 'শহর নির্বাচন করুন',
       loading: 'লোড হচ্ছে...',
-      locationPermissionDenied: 'অবস্থান অনুমতি দেওয়া হয়নি। অনুগ্রহ করে আপনার শহর খুঁজুন।',
-      locationUnsupported: 'জিওলোকেশন সমর্থিত নয়। অনুগ্রহ করে আপনার শহর খুঁজুন।',
-      retryLocation: 'পুনরায় চেষ্টা করুন',
-      usingDefaultLocation: 'ডিফল্ট অবস্থান (ঢাকা) ব্যবহার করা হচ্ছে',
     }
   };
 
   const txt = translations[language] || translations.en;
 
-  // Show permission request if needed
-  const showLocationPermissionUI = () => {
-    if (locationPermission === 'denied') {
-      return (
-        <div className="glass p-4 mb-4 bg-yellow-900/30 border border-yellow-500/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <i className="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
-              <span className="text-yellow-500">{txt.locationPermissionDenied}</span>
-            </div>
-            <button
-              onClick={() => setShowCitySearch(true)}
-              className="px-3 py-1 bg-[#d4af37] text-[#1a3f54] rounded-lg text-sm hover:bg-[#c4a037] transition"
-            >
-              {txt.searchCity}
-            </button>
-          </div>
-        </div>
-      );
-    }
-    if (locationPermission === 'prompt' && !selectedLocation) {
-      return (
-        <div className="glass p-4 mb-4 bg-blue-900/30 border border-blue-500/50">
-          <div className="flex items-center justify-between">
-            <div>
-              <i className="fas fa-info-circle text-blue-500 mr-2"></i>
-              <span className="text-blue-500">Please allow location access for accurate prayer times</span>
-            </div>
-            <button
-              onClick={requestLocationPermission}
-              className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600 transition"
-            >
-              Allow Location
-            </button>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  if (loading && !selectedLocation) {
+  if (loading || locationLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
           <i className="fas fa-moon text-4xl text-[#d4af37] animate-pulse mb-4"></i>
           <p className="text-white/70">{txt.loading}</p>
-          {locationLoading && <p className="text-sm text-white/50 mt-2">Detecting your location...</p>}
         </div>
       </div>
     );
@@ -504,10 +328,7 @@ const RamadanTable = () => {
       animate={{ opacity: 1 }}
       className="space-y-6 p-4"
     >
-      {/* Location Permission UI */}
-      {showLocationPermissionUI()}
-
-      {/* Header with Location and Search */}
+      {/* Header */}
       <div className="glass p-6 bg-gradient-to-r from-emerald-900/30 to-emerald-700/30">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -517,43 +338,34 @@ const RamadanTable = () => {
             <p className="text-white/80">{txt.subtitle}</p>
           </div>
           
-          <div className="flex flex-col items-end gap-2">
-            {/* Location Display with Search Button */}
-            {selectedLocation ? (
-              <div className="glass px-4 py-2 flex items-center gap-3">
-                <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
-                <div>
-                  <span>{selectedLocation.city}, {selectedLocation.country}</span>
-                  <div className="text-xs mt-1">
-                    <span className="text-[#d4af37]">{offsetInfo.group}</span>
-                  </div>
+          {/* Location Display */}
+          {selectedLocation ? (
+            <div className="glass px-4 py-2 flex items-center gap-3">
+              <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
+              <div>
+                <span>{selectedLocation.city}, {selectedLocation.country}</span>
+                <div className="text-xs mt-1">
+                  <span className="text-[#d4af37]">{offsetInfo.group}</span>
                 </div>
-                <button
-                  onClick={() => setShowCitySearch(true)}
-                  className="text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
-                  title={txt.changeCity}
-                >
-                  <i className="fas fa-search mr-1"></i>
-                  {txt.changeCity}
-                </button>
-                <button
-                  onClick={retryLocation}
-                  className="text-xs bg-emerald-500/20 px-2 py-1 rounded hover:bg-emerald-500/30 transition"
-                  title={txt.retryLocation}
-                >
-                  <i className="fas fa-sync-alt"></i>
-                </button>
               </div>
-            ) : (
               <button
                 onClick={() => setShowCitySearch(true)}
-                className="glass px-4 py-2 text-[#d4af37] hover:bg-white/10 transition"
+                className="text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
+                title={txt.changeCity}
               >
-                <i className="fas fa-search mr-2"></i>
-                {txt.searchCity}
+                <i className="fas fa-search mr-1"></i>
+                {txt.changeCity}
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCitySearch(true)}
+              className="glass px-4 py-2 text-[#d4af37] hover:bg-white/10 transition"
+            >
+              <i className="fas fa-search mr-2"></i>
+              {txt.searchCity}
+            </button>
+          )}
         </div>
 
         {/* Today's Highlight */}
@@ -561,15 +373,15 @@ const RamadanTable = () => {
           <div className="mt-6 glass p-6 bg-[#d4af37]/20 border-2 border-[#d4af37]">
             <h3 className="text-xl font-bold text-[#d4af37] mb-4 flex items-center gap-2">
               <i className="fas fa-star"></i>
-              {txt.todaysSchedule}
+              {txt.todaysSchedule || 'Today\'s Schedule'}
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-black/20 p-4 rounded-lg">
-                <p className="text-sm text-white/50">{txt.sehriTime}</p>
+                <p className="text-sm text-white/50">{txt.sehriTime || 'Sehri'}</p>
                 <p className="text-2xl font-bold text-emerald-400">{todayInfo.sehri}</p>
               </div>
               <div className="bg-black/20 p-4 rounded-lg">
-                <p className="text-sm text-white/50">{txt.iftarTime}</p>
+                <p className="text-sm text-white/50">{txt.iftarTime || 'Iftar'}</p>
                 <p className="text-2xl font-bold text-orange-400">{todayInfo.iftar}</p>
               </div>
             </div>
@@ -726,10 +538,12 @@ const RamadanTable = () => {
           <i className="fas fa-clock text-orange-400"></i>
           {txt.iftarNote}
         </p>
-        {selectedLocation && (
+        
+        {/* ✅ FIX 3: Safely using offsetInfo with check */}
+        {selectedLocation && offsetInfo && (
           <p className="flex items-center gap-2 mt-2 text-xs">
             <i className="fas fa-globe text-[#d4af37]"></i>
-            {offsetInfo.description}
+            {offsetInfo.description || 'Location-based calendar'}
           </p>
         )}
       </div>

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { getCurrentLocation, reverseGeocode } from '../services/locationService';
-import toast from 'react-hot-toast';
+import { getCurrentLocation, reverseGeocode, detectCountryFromIP } from '../services/locationService';
 
 export const useLocation = () => {
   const [location, setLocation] = useState(null);
@@ -14,34 +13,54 @@ export const useLocation = () => {
   const detectLocation = async () => {
     try {
       setLoading(true);
-      const coords = await getCurrentLocation();
-      const address = await reverseGeocode(coords.lat, coords.lng);
       
-      setLocation({
-        ...coords,
-        ...address
-      });
+      // Try geolocation first
+      const coords = await getCurrentLocation();
+      setLocation(coords);
       setError(null);
+      
     } catch (err) {
       console.error('Location detection failed:', err);
-      setError(err.message);
-      toast.error('Could not detect your location. Using default.');
       
-      // Default to Dhaka
-      setLocation({
-        lat: 23.8103,
-        lng: 90.4125,
-        city: 'Dhaka',
-        country: 'Bangladesh'
-      });
+      // Try IP detection as fallback
+      try {
+        const ipData = await detectCountryFromIP();
+        if (ipData) {
+          setLocation({
+            lat: ipData.lat,
+            lng: ipData.lng,
+            city: ipData.city || 'Unknown',
+            country: ipData.country || 'Unknown'
+          });
+          setError(null);
+        } else {
+          // Final fallback to Dhaka
+          setLocation({
+            lat: 23.8103,
+            lng: 90.4125,
+            city: 'Dhaka',
+            country: 'Bangladesh'
+          });
+          setError('Using default location');
+        }
+      } catch (ipErr) {
+        // Final fallback to Dhaka
+        setLocation({
+          lat: 23.8103,
+          lng: 90.4125,
+          city: 'Dhaka',
+          country: 'Bangladesh'
+        });
+        setError('Using default location');
+      }
+      
     } finally {
       setLoading(false);
     }
   };
 
-  const updateLocation = async (cityData) => {
-    setLocation(cityData);
-    toast.success('Location updated');
+  const updateLocation = (newLocation) => {
+    setLocation(newLocation);
   };
 
   return {

@@ -12,7 +12,7 @@ class HijriService {
       const formattedDate = date.toISOString().split('T')[0];
       
       // Use your backend API which already has Aladhan integration
-      const response = await api.get('/calendar/hijri', {
+      const response = await api.get('/api/calendar/hijri', {
         params: {
           lat,
           lng,

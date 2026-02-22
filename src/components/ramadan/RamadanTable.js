@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocation';
+import { useLocation } from '../../hooks/useLocations';
 import hijriService from '../../services/hijriService';
 import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';

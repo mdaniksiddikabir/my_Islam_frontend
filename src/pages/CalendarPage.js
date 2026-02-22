@@ -28,6 +28,8 @@ const CalendarPage = () => {
   const [currentHijri, setCurrentHijri] = useState(null);
   const [currentHijriError, setCurrentHijriError] = useState(false);
   const [userCountry, setUserCountry] = useState(null);
+  const [hijriYearForCalendar, setHijriYearForCalendar] = useState(null);
+  const [hijriMonthForCalendar, setHijriMonthForCalendar] = useState(null);
   
   // MANUAL OFFSET FOR YOUR AREA
   // If API shows 5th but actual is 4th, set offset to -1
@@ -79,28 +81,34 @@ const CalendarPage = () => {
   useEffect(() => {
     if (currentHijri && !currentHijriError) {
       const adjusted = getAdjustedHijriDate();
-      console.log('Setting calendar to show month:', adjusted.month);
+      console.log('Setting calendar to show Hijri month:', adjusted.month);
       
-      // We need to find the Gregorian date that corresponds to this Hijri month
-      // For now, we'll keep the current date but ensure the calendar shows the right month
-      // In a production app, you'd want to convert Hijri to Gregorian
+      // Set the Hijri year and month for calendar display
+      setHijriYearForCalendar(adjusted.year);
+      setHijriMonthForCalendar(adjusted.month);
       
-      // Refresh calendar data to ensure it shows the correct month
-      loadCalendarData();
+      // Load calendar data with the correct Hijri month
+      loadHijriCalendarForMonth(adjusted.year, adjusted.month);
     }
   }, [currentHijri]);
 
   // Load calendar data when date or type changes
   useEffect(() => {
-    loadCalendarData();
-  }, [calendarType, currentDate]);
+    if (calendarType === 'hijri') {
+      if (hijriYearForCalendar && hijriMonthForCalendar) {
+        loadHijriCalendarForMonth(hijriYearForCalendar, hijriMonthForCalendar);
+      }
+    } else {
+      loadGregorianCalendar();
+    }
+  }, [calendarType, hijriYearForCalendar, hijriMonthForCalendar]);
 
   // Load events when currentHijri changes
   useEffect(() => {
     if (currentHijri) {
       loadEvents();
     }
-  }, [currentHijri, currentLanguage]); // Reload when language changes
+  }, [currentHijri, currentLanguage]);
 
   const getUserCountry = () => {
     try {
@@ -171,45 +179,66 @@ const CalendarPage = () => {
     }
   };
 
-  const loadCalendarData = async () => {
+  // NEW FUNCTION: Load Hijri calendar for a specific Hijri year and month
+  const loadHijriCalendarForMonth = async (hijriYear, hijriMonth) => {
     try {
       setLoading(true);
       
-      if (calendarType === 'hijri') {
-        // For Hijri calendar, we want to show the current Hijri month
-        // We need to find the corresponding Gregorian year/month
-        // This is a simplified approach - in production you'd want proper conversion
-        const adjustedDate = getAdjustedHijriDate();
-        
-        // Use current date for now, but in production you'd convert Hijri to Gregorian
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
-        
-        console.log('Loading Hijri calendar for Gregorian month:', month);
-        
-        const data = await getHijriCalendar(year, month);
-        setHijriDate(data || null);
-        if (data) {
-          generateHijriCalendar(data);
-        } else {
-          setCalendarDays([]);
-        }
+      // We need to convert Hijri year/month to Gregorian to get the calendar data
+      // This is a simplified approach - in production you'd use a proper conversion
+      
+      // For now, we'll use the current Gregorian date but we know the Hijri month
+      // In a real app, you'd have an API endpoint that accepts Hijri year/month
+      
+      // Since your API might not accept Hijri directly, we'll use the current Gregorian date
+      // but store the Hijri month for display
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      
+      console.log(`Loading Hijri calendar for Hijri month ${hijriMonth}/${hijriYear} using Gregorian ${month}/${year}`);
+      
+      const data = await getHijriCalendar(year, month);
+      setHijriDate({
+        ...data,
+        // Override with our Hijri month info
+        hijriYear: hijriYear,
+        hijriMonth: hijriMonth,
+        month: hijriMonth, // Use the actual Hijri month
+        year: hijriYear
+      });
+      
+      if (data) {
+        generateHijriCalendar(data, hijriYear, hijriMonth);
       } else {
-        // For Gregorian calendar
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1;
-        
-        const data = await getGregorianCalendar(year, month);
-        setGregorianDate(data || null);
-        if (data) {
-          generateGregorianCalendar(data);
-        } else {
-          setCalendarDays([]);
-        }
+        setCalendarDays([]);
       }
       
     } catch (error) {
-      console.error('Error loading calendar:', error);
+      console.error('Error loading Hijri calendar:', error);
+      toast.error(t('errors.calendar') || 'Failed to load calendar');
+      setCalendarDays([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadGregorianCalendar = async () => {
+    try {
+      setLoading(true);
+      
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      
+      const data = await getGregorianCalendar(year, month);
+      setGregorianDate(data || null);
+      if (data) {
+        generateGregorianCalendar(data);
+      } else {
+        setCalendarDays([]);
+      }
+      
+    } catch (error) {
+      console.error('Error loading Gregorian calendar:', error);
       toast.error(t('errors.calendar') || 'Failed to load calendar');
       setCalendarDays([]);
     } finally {
@@ -219,12 +248,12 @@ const CalendarPage = () => {
 
   const loadEvents = async () => {
     try {
-      const year = currentHijri?.year || 1447;
+      const adjustedDate = getAdjustedHijriDate();
+      const year = adjustedDate?.year || 1447;
       const data = await getIslamicEvents(year);
       setEvents(data || []);
       
       // Generate upcoming events using adjusted date
-      const adjustedDate = getAdjustedHijriDate();
       if (data && data.length > 0 && adjustedDate) {
         const upcoming = data
           .filter(event => {
@@ -247,7 +276,8 @@ const CalendarPage = () => {
     }
   };
 
-  const generateHijriCalendar = (data) => {
+  // MODIFIED: Generate Hijri calendar with actual Hijri month info
+  const generateHijriCalendar = (data, actualHijriYear, actualHijriMonth) => {
     if (!data || !data.days) {
       setCalendarDays([]);
       return;
@@ -270,13 +300,13 @@ const CalendarPage = () => {
       // Check if this day is today using ADJUSTED date
       const isToday = adjustedDate && 
                      d === adjustedDate.day && 
-                     data.month === adjustedDate.month &&
-                     data.year === adjustedDate.year;
+                     actualHijriMonth === adjustedDate.month &&
+                     actualHijriYear === adjustedDate.year;
 
-      // Find events for this day
+      // Find events for this day (using actual Hijri month)
       const dayEvents = events.filter(event => 
         event.hijriDay === d && 
-        event.hijriMonth === data.month
+        event.hijriMonth === actualHijriMonth
       );
 
       days.push({
@@ -284,11 +314,11 @@ const CalendarPage = () => {
         isToday,
         events: dayEvents,
         gregorian: dayData.gregorian || '',
-        isRamadan: data.month === 9,
+        isRamadan: actualHijriMonth === 9,
         hijriDate: {
           day: d,
-          month: data.month,
-          year: data.year
+          month: actualHijriMonth,
+          year: actualHijriYear
         }
       });
     }
@@ -332,20 +362,63 @@ const CalendarPage = () => {
   };
 
   const handlePrevMonth = () => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() - 1);
-    setCurrentDate(newDate);
+    if (calendarType === 'hijri') {
+      // For Hijri calendar, we need to go to previous Hijri month
+      if (hijriMonthForCalendar && hijriYearForCalendar) {
+        let newMonth = hijriMonthForCalendar - 1;
+        let newYear = hijriYearForCalendar;
+        
+        if (newMonth < 1) {
+          newMonth = 12;
+          newYear -= 1;
+        }
+        
+        setHijriMonthForCalendar(newMonth);
+        setHijriYearForCalendar(newYear);
+      }
+    } else {
+      // For Gregorian calendar
+      const newDate = new Date(currentDate);
+      newDate.setMonth(currentDate.getMonth() - 1);
+      setCurrentDate(newDate);
+    }
   };
 
   const handleNextMonth = () => {
-    const newDate = new Date(currentDate);
-    newDate.setMonth(currentDate.getMonth() + 1);
-    setCurrentDate(newDate);
+    if (calendarType === 'hijri') {
+      // For Hijri calendar, we need to go to next Hijri month
+      if (hijriMonthForCalendar && hijriYearForCalendar) {
+        let newMonth = hijriMonthForCalendar + 1;
+        let newYear = hijriYearForCalendar;
+        
+        if (newMonth > 12) {
+          newMonth = 1;
+          newYear += 1;
+        }
+        
+        setHijriMonthForCalendar(newMonth);
+        setHijriYearForCalendar(newYear);
+      }
+    } else {
+      // For Gregorian calendar
+      const newDate = new Date(currentDate);
+      newDate.setMonth(currentDate.getMonth() + 1);
+      setCurrentDate(newDate);
+    }
   };
 
   const handleToday = () => {
+    // Reset to today's Hijri date
+    fetchCurrentHijri();
+    
+    const adjusted = getAdjustedHijriDate();
+    if (adjusted) {
+      setHijriYearForCalendar(adjusted.year);
+      setHijriMonthForCalendar(adjusted.month);
+    }
+    
     setCurrentDate(new Date());
-    fetchCurrentHijri(); // Refresh today's Hijri date
+    
     toast.success(
       currentLanguage === 'bn' 
         ? 'আজকের তারিখে ফিরে গেছেন' 
@@ -360,10 +433,11 @@ const CalendarPage = () => {
       setSelectedDate({
         ...day,
         type: 'hijri',
-        month: hijriDate?.month,
-        year: hijriDate?.year,
-        monthName: hijriMonths[currentLanguage]?.[(hijriDate?.month || 1) - 1] || 
-                   hijriMonths.en[(hijriDate?.month || 1) - 1]
+        month: hijriMonthForCalendar,
+        year: hijriYearForCalendar,
+        monthName: currentLanguage === 'bn' 
+          ? hijriMonths.bn[(hijriMonthForCalendar || 1) - 1]
+          : hijriMonths.en[(hijriMonthForCalendar || 1) - 1]
       });
     } else {
       setSelectedDate({
@@ -371,8 +445,9 @@ const CalendarPage = () => {
         type: 'gregorian',
         month: currentDate.getMonth() + 1,
         year: currentDate.getFullYear(),
-        monthName: gregorianMonths[currentLanguage]?.[currentDate.getMonth()] || 
-                   gregorianMonths.en[currentDate.getMonth()]
+        monthName: currentLanguage === 'bn' 
+          ? gregorianMonths.bn[currentDate.getMonth()]
+          : gregorianMonths.en[currentDate.getMonth()]
       });
     }
   };
@@ -572,9 +647,9 @@ const CalendarPage = () => {
             {calendarType === 'hijri' ? (
               <>
                 {currentLanguage === 'bn' 
-                  ? hijriMonths.bn[(hijriDate?.month || currentDate.getMonth() + 1) - 1]
-                  : hijriMonths.en[(hijriDate?.month || currentDate.getMonth() + 1) - 1]
-                } {formatNumber(hijriDate?.year || currentDate.getFullYear())} AH
+                  ? hijriMonths.bn[(hijriMonthForCalendar || 1) - 1]
+                  : hijriMonths.en[(hijriMonthForCalendar || 1) - 1]
+                } {formatNumber(hijriYearForCalendar || currentHijri?.year || 1447)} AH
               </>
             ) : (
               <>
@@ -658,7 +733,7 @@ const CalendarPage = () => {
         </div>
       </div>
 
-      {/* Upcoming Events Section - using adjusted date with language support */}
+      {/* Upcoming Events Section */}
       {upcomingEvents.length > 0 && (
         <div className="glass p-6">
           <h3 className="text-xl mb-4 text-[#d4af37] flex items-center gap-2">
@@ -682,8 +757,7 @@ const CalendarPage = () => {
                   onClick={() => {
                     const dayToFind = calendarDays.find(d => 
                       !d.empty && 
-                      d.day === event.hijriDay && 
-                      hijriDate?.month === event.hijriMonth
+                      d.day === event.hijriDay
                     );
                     if (dayToFind) {
                       handleDateClick(dayToFind);

@@ -1,11 +1,15 @@
 import api from './api';
 
-export const getPrayerTimes = async (lat, lng, method = 4) => {
+export const getPrayerTimes = async (lat, lng, method = 4, date = null) => {
   try {
-    // ✅ ADDED /api
-    const response = await api.get('/api/prayer/times', {
-      params: { lat, lng, method }
-    });
+    const params = { lat, lng, method };
+    
+    // ✅ Add date to params if provided
+    if (date) {
+      params.date = date;
+    }
+    
+    const response = await api.get('/api/prayer/times', { params });
     return response.data.data;
   } catch (error) {
     console.error('Error fetching prayer times:', error);
@@ -13,12 +17,16 @@ export const getPrayerTimes = async (lat, lng, method = 4) => {
   }
 };
 
-export const getPrayerTimesByCity = async (city, country, method = 4) => {
+export const getPrayerTimesByCity = async (city, country, method = 4, date = null) => {
   try {
-    // ✅ ADDED /api
-    const response = await api.get('/api/prayer/by-city', {
-      params: { city, country, method }
-    });
+    const params = { city, country, method };
+    
+    // ✅ Add date if provided
+    if (date) {
+      params.date = date;
+    }
+    
+    const response = await api.get('/api/prayer/by-city', { params });
     return response.data.data;
   } catch (error) {
     console.error('Error fetching prayer times by city:', error);
@@ -28,7 +36,6 @@ export const getPrayerTimesByCity = async (city, country, method = 4) => {
 
 export const getCalculationMethods = async () => {
   try {
-    // ✅ ADDED /api
     const response = await api.get('/api/prayer/methods');
     return response.data.data;
   } catch (error) {
@@ -39,7 +46,6 @@ export const getCalculationMethods = async () => {
 
 export const getNextPrayer = async (lat, lng, method = 4) => {
   try {
-    // ✅ ADDED /api
     const response = await api.get('/api/prayer/next', {
       params: { lat, lng, method }
     });

@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes, getCalculationMethods } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations';
+import { useLocation } from '../../hooks/useLocations'; // Fixed import path
 import hijriService from '../../services/hijriService';
 import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
@@ -11,7 +11,10 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { getBangladeshOffset } from '../../services/bangladeshOffsets';
 
-// Simple PDF font handling
+// Cache system
+const CACHE_KEY = 'ramadan_cache';
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+
 const setupPDFFont = (doc, language) => {
   doc.setFont('helvetica');
   if (language === 'bn') {
@@ -26,8 +29,16 @@ const RamadanTable = () => {
   const [loading, setLoading] = useState(true);
   const [todayInfo, setTodayInfo] = useState(null);
   const [calculationMethods, setCalculationMethods] = useState([]);
-  const [selectedMethod, setSelectedMethod] = useState(4);
+  
+  // Default to Karachi method (ID: 1)
+  const [selectedMethod, setSelectedMethod] = useState(1);
   const [showMethodSelector, setShowMethodSelector] = useState(false);
+  
+  // Offset toggle - default to YES (use offsets)
+  const [useOffsets, setUseOffsets] = useState(true);
+  
+  // Track last loaded location to prevent unnecessary reloads
+  const [lastLoadedLocation, setLastLoadedLocation] = useState(null);
   
   // Countdown state
   const [countdown, setCountdown] = useState({
@@ -62,9 +73,8 @@ const RamadanTable = () => {
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
-  // Method names for display
+  // Method names
   const methodNames = {
-    0: 'Shia Ithna-Ashari',
     1: 'University of Islamic Sciences, Karachi',
     2: 'Islamic Society of North America (ISNA)',
     3: 'Muslim World League (MWL)',
@@ -96,70 +106,73 @@ const RamadanTable = () => {
     99: 'Custom'
   };
 
+  // Load calculation methods on mount
   useEffect(() => {
     loadCalculationMethods();
   }, []);
 
+  // Load data when location changes or method changes
   useEffect(() => {
     if (userLocation) {
       setSelectedLocation(userLocation);
-      loadRamadanData(userLocation);
+      
+      // Check if location actually changed
+      const locationKey = `${userLocation.lat},${userLocation.lng},${selectedMethod},${useOffsets}`;
+      
+      if (lastLoadedLocation !== locationKey) {
+        loadRamadanData(userLocation);
+        setLastLoadedLocation(locationKey);
+      } else {
+        // Try to load from cache
+        loadFromCache();
+      }
     }
-  }, [userLocation, selectedMethod]);
+  }, [userLocation, selectedMethod, useOffsets]);
 
-  // Countdown timer effect
-  useEffect(() => {
-    if (!todayInfo) return;
-
-    const timer = setInterval(() => {
-      updateCountdown();
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [todayInfo]);
-
-  const updateCountdown = () => {
-    if (!todayInfo) return;
-
-    const now = new Date();
-    const currentTime = now.getHours() * 60 + now.getMinutes();
-
-    // Parse today's times
-    const [sehriHour, sehriMin] = todayInfo.sehri24.split(':').map(Number);
-    const [iftarHour, iftarMin] = todayInfo.iftar24.split(':').map(Number);
-
-    const sehriTime = sehriHour * 60 + sehriMin;
-    const iftarTime = iftarHour * 60 + iftarMin;
-
-    let targetTime;
-    let eventType;
-
-    if (currentTime < sehriTime) {
-      targetTime = sehriTime;
-      eventType = 'sehri';
-    } else if (currentTime < iftarTime) {
-      targetTime = iftarTime;
-      eventType = 'iftar';
-    } else {
-      targetTime = sehriTime + 24 * 60;
-      eventType = 'sehri';
+  // Load from cache function
+  const loadFromCache = () => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp, location, method, offsets } = JSON.parse(cached);
+        const now = Date.now();
+        
+        // Check if cache is still valid and matches current location/method/offset setting
+        if (now - timestamp < CACHE_DURATION && 
+            location === `${userLocation?.lat},${userLocation?.lng}` && 
+            method === selectedMethod &&
+            offsets === useOffsets) {
+          
+          console.log('📦 Loading from cache');
+          setRamadanDays(data.days);
+          setTodayInfo(data.todayInfo);
+          setRamadanInfo(data.ramadanInfo);
+          setOffsetInfo(data.offsetInfo);
+          setLoading(false);
+          return true;
+        }
+      }
+    } catch (error) {
+      console.error('Cache load failed:', error);
     }
+    return false;
+  };
 
-    const minutesRemaining = targetTime - currentTime;
-    const hours = Math.floor(minutesRemaining / 60);
-    const minutes = minutesRemaining % 60;
-    const seconds = 59 - now.getSeconds();
-
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-    setCountdown({
-      nextEvent: eventType === 'sehri' ? 'Sehri' : 'Iftar',
-      timeRemaining: timeString,
-      hours,
-      minutes,
-      seconds,
-      type: eventType
-    });
+  // Save to cache function
+  const saveToCache = (data) => {
+    try {
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        location: `${userLocation?.lat},${userLocation?.lng}`,
+        method: selectedMethod,
+        offsets: useOffsets
+      };
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+      console.log('📦 Saved to cache');
+    } catch (error) {
+      console.error('Cache save failed:', error);
+    }
   };
 
   const loadCalculationMethods = async () => {
@@ -172,18 +185,18 @@ const RamadanTable = () => {
   };
 
   const applyBangladeshOffset = (sehriTime, iftarTime, city) => {
+    // Only apply offsets if useOffsets is true
+    if (!useOffsets) return { sehri: sehriTime, iftar: iftarTime };
+    
     if (selectedLocation?.country === 'Bangladesh') {
       const offset = getBangladeshOffset(city || selectedLocation.city);
       
-      // Parse times
       const [sehriHour, sehriMin] = sehriTime.split(':').map(Number);
       const [iftarHour, iftarMin] = iftarTime.split(':').map(Number);
       
-      // Apply offsets
       const sehriTotal = sehriHour * 60 + sehriMin - offset.sehri;
       const iftarTotal = iftarHour * 60 + iftarMin + offset.iftar;
       
-      // Convert back to HH:MM
       const newSehriHour = Math.floor(sehriTotal / 60);
       const newSehriMin = sehriTotal % 60;
       const newIftarHour = Math.floor(iftarTotal / 60);
@@ -201,6 +214,12 @@ const RamadanTable = () => {
     try {
       setLoading(true);
       setLoadingProgress(0);
+      
+      // Try to load from cache first
+      if (loadFromCache()) {
+        setLoading(false);
+        return;
+      }
       
       const calendarData = await hijriService.getRamadanCalendar(location);
       
@@ -220,20 +239,22 @@ const RamadanTable = () => {
       const days = [];
       let todayData = null;
       
-      const toastId = toast.loading(`Fetching times using ${methodNames[selectedMethod] || 'selected method'}...`);
+      const toastId = toast.loading(`Fetching prayer times for 30 days...`);
       
+      // Fetch times for each day
       for (let i = 0; i < calendarData.days.length; i++) {
         const day = calendarData.days[i];
         
         const progress = Math.round(((i + 1) / calendarData.days.length) * 100);
         setLoadingProgress(progress);
-        toast.loading(`Fetching times: ${progress}%`, { id: toastId });
+        toast.loading(`Fetching day ${i + 1}/30: ${progress}%`, { id: toastId });
         
         let sehriTime = '05:30';
         let iftarTime = '18:15';
         
         if (location) {
           try {
+            // Get prayer times for this specific date
             const prayerData = await getPrayerTimes(
               location.lat,
               location.lng,
@@ -244,7 +265,7 @@ const RamadanTable = () => {
             sehriTime = prayerData?.timings?.Fajr || '05:30';
             iftarTime = prayerData?.timings?.Maghrib || '18:15';
             
-            // Apply Bangladesh-specific offsets if needed
+            // Apply Bangladesh-specific offsets if enabled
             if (location.country === 'Bangladesh') {
               const adjusted = applyBangladeshOffset(sehriTime, iftarTime, location.city);
               sehriTime = adjusted.sehri;
@@ -278,6 +299,7 @@ const RamadanTable = () => {
 
         days.push(dayData);
         
+        // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 50));
       }
 
@@ -285,6 +307,19 @@ const RamadanTable = () => {
       
       setTodayInfo(todayData);
       setRamadanDays(days);
+      
+      // Save to cache
+      saveToCache({
+        days,
+        todayInfo: todayData,
+        ramadanInfo: {
+          year: calendarData.year,
+          currentDay: calendarData.currentDay,
+          startDate: calendarData.startDate,
+          endDate: calendarData.endDate
+        },
+        offsetInfo: { offset, description, group }
+      });
       
     } catch (error) {
       console.error('Error loading Ramadan data:', error);
@@ -331,6 +366,58 @@ const RamadanTable = () => {
     return '';
   };
 
+  // Countdown timer effect
+  useEffect(() => {
+    if (!todayInfo) return;
+
+    const timer = setInterval(() => {
+      updateCountdown();
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [todayInfo]);
+
+  const updateCountdown = () => {
+    if (!todayInfo) return;
+
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    const [sehriHour, sehriMin] = todayInfo.sehri24.split(':').map(Number);
+    const [iftarHour, iftarMin] = todayInfo.iftar24.split(':').map(Number);
+
+    const sehriTime = sehriHour * 60 + sehriMin;
+    const iftarTime = iftarHour * 60 + iftarMin;
+
+    let targetTime;
+    let eventType;
+
+    if (currentTime < sehriTime) {
+      targetTime = sehriTime;
+      eventType = 'sehri';
+    } else if (currentTime < iftarTime) {
+      targetTime = iftarTime;
+      eventType = 'iftar';
+    } else {
+      targetTime = sehriTime + 24 * 60;
+      eventType = 'sehri';
+    }
+
+    const minutesRemaining = targetTime - currentTime;
+    const hours = Math.floor(minutesRemaining / 60);
+    const minutes = minutesRemaining % 60;
+    const seconds = 59 - now.getSeconds();
+
+    setCountdown({
+      nextEvent: eventType === 'sehri' ? 'Sehri' : 'Iftar',
+      timeRemaining: `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`,
+      hours,
+      minutes,
+      seconds,
+      type: eventType
+    });
+  };
+
   const searchCityByName = async () => {
     if (!searchCity.trim()) return;
     
@@ -360,7 +447,8 @@ const RamadanTable = () => {
     setShowCitySearch(false);
     setSearchCity('');
     setSearchResults([]);
-    loadRamadanData(city);
+    // Clear last loaded location to force reload
+    setLastLoadedLocation(null);
   };
 
   const exportToPDF = () => {
@@ -383,8 +471,9 @@ const RamadanTable = () => {
         ? `${selectedLocation.city}, ${selectedLocation.country}`
         : 'Location not set';
       doc.text(locationText, 14, 30);
-      doc.text(`Method: ${methodNames[selectedMethod] || 'Umm Al-Qura'}`, 14, 35);
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 40);
+      doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 14, 35);
+      doc.text(`Offsets: ${useOffsets ? 'Enabled' : 'Disabled'}`, 14, 40);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 45);
       
       const tableColumn = language === 'bn' 
         ? ['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']
@@ -403,7 +492,7 @@ const RamadanTable = () => {
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
-        startY: 45,
+        startY: 50,
         styles: { fontSize: 8 },
         headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
         alternateRowStyles: { fillColor: [240, 240, 240] }
@@ -452,7 +541,7 @@ const RamadanTable = () => {
       searchResults: 'Search Results',
       close: 'Close',
       loading: 'Loading...',
-      fetchingTimes: 'Fetching prayer times...',
+      fetchingTimes: 'Fetching times...',
       progress: 'Progress',
       calculationMethod: 'Calculation Method',
       changeMethod: 'Change Method',
@@ -460,6 +549,10 @@ const RamadanTable = () => {
       timeRemaining: 'Time Remaining',
       sehri: 'Sehri',
       iftar: 'Iftar',
+      offsets: 'Use Local Offsets',
+      offsetsEnabled: 'Enabled',
+      offsetsDisabled: 'Disabled',
+      enableOffsets: 'Enable location-based adjustments'
     },
     bn: {
       title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
@@ -488,7 +581,7 @@ const RamadanTable = () => {
       searchResults: 'অনুসন্ধানের ফলাফল',
       close: 'বন্ধ',
       loading: 'লোড হচ্ছে...',
-      fetchingTimes: 'নামাজের সময় আনা হচ্ছে...',
+      fetchingTimes: ' সময় আনা হচ্ছে...',
       progress: 'অগ্রগতি',
       calculationMethod: 'গণনা পদ্ধতি',
       changeMethod: 'পদ্ধতি পরিবর্তন',
@@ -496,6 +589,10 @@ const RamadanTable = () => {
       timeRemaining: 'অবশিষ্ট সময়',
       sehri: 'সেহরি',
       iftar: 'ইফতার',
+      offsets: 'স্থানীয় সমন্বয় ব্যবহার করুন',
+      offsetsEnabled: 'সক্রিয়',
+      offsetsDisabled: 'নিষ্ক্রিয়',
+      enableOffsets: 'অবস্থান-ভিত্তিক সমন্বয় সক্রিয় করুন'
     }
   };
 
@@ -548,6 +645,22 @@ const RamadanTable = () => {
             >
               <i className="fas fa-calculator"></i>
               <span className="hidden md:inline">{txt.calculationMethod}</span>
+            </button>
+            
+            {/* Offset Toggle Button */}
+            <button
+              onClick={() => setUseOffsets(!useOffsets)}
+              className={`px-4 py-2 rounded-lg transition flex items-center gap-2 ${
+                useOffsets 
+                  ? 'bg-emerald-600 text-white' 
+                  : 'bg-gray-600 text-white/70'
+              }`}
+              title={txt.enableOffsets}
+            >
+              <i className="fas fa-map-pin"></i>
+              <span className="hidden md:inline">
+                {useOffsets ? txt.offsetsEnabled : txt.offsetsDisabled}
+              </span>
             </button>
             
             {/* Location Button */}
@@ -813,6 +926,10 @@ const RamadanTable = () => {
         <p className="flex items-center gap-2 mt-2 text-xs">
           <i className="fas fa-calculator text-[#d4af37]"></i>
           {txt.calculationMethod}: {methodNames[selectedMethod]}
+        </p>
+        <p className="flex items-center gap-2 mt-1 text-xs">
+          <i className="fas fa-map-pin text-[#d4af37]"></i>
+          {txt.offsets}: {useOffsets ? txt.offsetsEnabled : txt.offsetsDisabled}
         </p>
         {selectedLocation && offsetInfo && (
           <p className="flex items-center gap-2 mt-1 text-xs">

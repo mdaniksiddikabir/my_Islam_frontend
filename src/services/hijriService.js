@@ -76,7 +76,7 @@ class HijriService {
       // =====================================================
       
       // South Asia
-      'Pakistan': -1, 'India': -1, 'Bangladesh': 0, 'Sri Lanka': -1,
+      'Pakistan': -1, 'India': -1, 'Bangladesh': -1, 'Sri Lanka': -1,
       'Nepal': -1, 'Maldives': -1, 'Bhutan': -1,
       
       // Southeast Asia

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes, getCalculationMethods } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations';
+import { useLocation } from '../../hooks/useLocation';
 import hijriService from '../../services/hijriService';
 import citySearchService from '../../services/citySearchService';
 import { format } from 'date-fns';
@@ -171,14 +171,6 @@ const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt
                   </div>
                 </div>
               )}
-              
-              {/* Progress for approximate times */}
-              {day.isApprox && (
-                <div className="mt-3 text-xs text-white/30 flex items-center gap-2">
-                  <i className="fas fa-spinner fa-spin text-amber-400"></i>
-                  <span>{txt.loadingAccurate || 'Loading accurate times...'}</span>
-                </div>
-              )}
             </div>
           </motion.div>
         )}
@@ -207,6 +199,7 @@ const RamadanTable = () => {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [selectedDay, setSelectedDay] = useState(null);
   const [countdown, setCountdown] = useState({ nextEvent: '', timeRemaining: '', hours: 0, minutes: 0, seconds: 0, type: '' });
+  const [isDataReady, setIsDataReady] = useState(false);
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
@@ -232,12 +225,12 @@ const RamadanTable = () => {
     }
   }, [userLocation, selectedMethod, useOffsets]);
 
-  // Countdown timer
+  // Countdown timer - only start when data is ready
   useEffect(() => {
-    if (!todayInfo) return;
+    if (!todayInfo || !isDataReady) return;
     const timer = setInterval(updateCountdown, 1000);
     return () => clearInterval(timer);
-  }, [todayInfo]);
+  }, [todayInfo, isDataReady]);
 
   const updateCountdown = () => {
     if (!todayInfo) return;
@@ -280,10 +273,12 @@ const RamadanTable = () => {
   const loadRamadanData = async (location) => {
     try {
       setLoading(true);
+      setIsDataReady(false);
       setLoadingProgress(0);
       
       const loadingToast = toast.loading(language === 'bn' ? '📅 রমজান ক্যালেন্ডার তৈরি হচ্ছে...' : '📅 Generating Ramadan calendar...');
       
+      // Step 1: Get calendar data
       const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
       
       const offset = hijriService.getCountryOffset(location);
@@ -298,107 +293,79 @@ const RamadanTable = () => {
         endDate: calendarData.endDate
       });
       
-      toast.loading(language === 'bn' ? '⏳ আনুমানিক সময় তৈরি হচ্ছে...' : '⏳ Creating estimated times...', { id: loadingToast });
+      // Step 2: Fetch ALL 30 days in PARALLEL
+      toast.loading(language === 'bn' ? '⏳ ৩০ দিনের সময় লোড হচ্ছে...' : '⏳ Loading 30 days times...', { id: loadingToast });
       
-      // Create approximate times first
-      const approxDays = calendarData.days.map(day => {
-        const sehri24 = calculateApproxSehri(day.day);
-        const iftar24 = calculateApproxIftar(day.day);
+      const fetchPromises = calendarData.days.map(async (day) => {
+        try {
+          const prayerData = await getPrayerTimes(
+            location.lat,
+            location.lng,
+            selectedMethod,
+            day.gregorianStr
+          );
+          
+          return {
+            day: day.day,
+            sehri24: prayerData?.timings?.Fajr || '05:30',
+            iftar24: prayerData?.timings?.Maghrib || '18:15',
+            success: true
+          };
+        } catch (error) {
+          console.log(`Day ${day.day} failed, using fallback`);
+          return {
+            day: day.day,
+            sehri24: calculateApproxSehri(day.day),
+            iftar24: calculateApproxIftar(day.day),
+            success: false
+          };
+        }
+      });
+      
+      // Wait for ALL promises to complete
+      const results = await Promise.all(fetchPromises);
+      
+      // Step 3: Create final days array with all data
+      const finalDays = calendarData.days.map(day => {
+        const result = results.find(r => r.day === day.day);
         
         return {
           day: day.day,
           gregorianDate: day.gregorian,
           gregorianStr: day.gregorianStr,
           hijriDate: day.hijri.format,
-          sehri24: sehri24,
-          sehri12: convertTo12Hour(sehri24),
-          iftar24: iftar24,
-          iftar12: convertTo12Hour(iftar24),
-          fastingHours: calculateFastingHours(sehri24, iftar24),
+          sehri24: result.sehri24,
+          sehri12: convertTo12Hour(result.sehri24),
+          iftar24: result.iftar24,
+          iftar12: convertTo12Hour(result.iftar24),
+          fastingHours: calculateFastingHours(result.sehri24, result.iftar24),
           isToday: day.isToday,
-          isApprox: true
+          isApprox: !result.success
         };
       });
       
-      setRamadanDays(approxDays);
-      setTodayInfo(approxDays.find(d => d.isToday));
+      // Step 4: Update state with all data
+      setRamadanDays(finalDays);
+      setTodayInfo(finalDays.find(d => d.isToday));
       
-      toast.dismiss(loadingToast);
-      toast.info(language === 'bn' ? '⏱️ ক্যালেন্ডার প্রস্তুত! সঠিক সময় লোড হচ্ছে...' : '⏱️ Calendar ready! Loading accurate times...', {
-        duration: 3000
-      });
+      // Step 5: Mark data as ready
+      setIsDataReady(true);
       
-      // Fetch real times in background
-      fetchRealTimes(location, calendarData);
+      const successCount = results.filter(r => r.success).length;
+      toast.success(
+        language === 'bn' 
+          ? `✅ ${successCount}/৩০ দিন লোড হয়েছে` 
+          : `✅ Loaded ${successCount}/30 days`, 
+        { id: loadingToast }
+      );
       
     } catch (error) {
       console.error('Error:', error);
       toast.error(language === 'bn' ? '❌ ডেটা লোড করতে সমস্যা হয়েছে' : '❌ Failed to load data');
     } finally {
       setLoading(false);
+      setLoadingProgress(100);
     }
-  };
-
-  const fetchRealTimes = async (location, calendarData) => {
-    const toastId = toast.loading(language === 'bn' ? '⏳ সঠিক সময় লোড হচ্ছে...' : '⏳ Loading accurate times...');
-    let successCount = 0;
-    let failedDays = [];
-    
-    for (let i = 0; i < calendarData.days.length; i++) {
-      const day = calendarData.days[i];
-      setLoadingProgress(Math.round((i + 1) / 30 * 100));
-      
-      try {
-        const prayerData = await getPrayerTimes(
-          location.lat,
-          location.lng,
-          selectedMethod,
-          day.gregorianStr
-        );
-        
-        if (prayerData?.timings) {
-          successCount++;
-          const sehri24 = prayerData.timings.Fajr;
-          const iftar24 = prayerData.timings.Maghrib;
-          
-          setRamadanDays(prev => prev.map(d => 
-            d.day === day.day ? {
-              ...d,
-              sehri24: sehri24,
-              sehri12: convertTo12Hour(sehri24),
-              iftar24: iftar24,
-              iftar12: convertTo12Hour(iftar24),
-              fastingHours: calculateFastingHours(sehri24, iftar24),
-              isApprox: false
-            } : d
-          ));
-        } else {
-          failedDays.push(day.day);
-        }
-      } catch (error) {
-        failedDays.push(day.day);
-      }
-    }
-    
-    if (successCount === 30) {
-      toast.success(language === 'bn' ? '✅ সব ৩০ দিনের সঠিক সময় লোড হয়েছে!' : '✅ All 30 days loaded successfully!', { id: toastId });
-    } else if (successCount > 0) {
-      toast.success(
-        language === 'bn' 
-          ? `✅ ${successCount}/৩০ দিন লোড হয়েছে। ${failedDays.length} দিন আনুমানিক সময় ব্যবহার করা হবে।` 
-          : `✅ Loaded ${successCount}/30 days. ${failedDays.length} days using estimates.`, 
-        { id: toastId, duration: 5000 }
-      );
-    } else {
-      toast.error(
-        language === 'bn' 
-          ? '❌ সঠিক সময় লোড করতে সমস্যা হয়েছে। আনুমানিক সময় ব্যবহার করা হবে।' 
-          : '❌ Failed to load accurate times. Using estimates.', 
-        { id: toastId }
-      );
-    }
-    
-    setLoadingProgress(100);
   };
 
   const handleDayClick = (day) => {
@@ -407,8 +374,8 @@ const RamadanTable = () => {
     if (day.isApprox) {
       toast.info(
         language === 'bn' 
-          ? `📅 দিন ${day.day}: আনুমানিক সময় ব্যবহার করা হচ্ছে। সঠিক সময় লোড হচ্ছে...` 
-          : `📅 Day ${day.day}: Using estimated times. Accurate times loading...`, 
+          ? `📅 দিন ${day.day}: আনুমানিক সময়` 
+          : `📅 Day ${day.day}: Estimated times`, 
         { duration: 2000, icon: '⏳' }
       );
     } else {
@@ -437,8 +404,7 @@ const RamadanTable = () => {
     
     setTimeout(() => {
       toast.dismiss(loadingToast);
-      toast.success(language === 'bn' ? `✓ ${city.name} এর জন্য ক্যালেন্ডার লোড হয়েছে` : `✓ Calendar loaded for ${city.name}`);
-    }, 1000);
+    }, 500);
   };
 
   // Helper functions
@@ -500,24 +466,21 @@ const RamadanTable = () => {
     }
   };
 
-  // PDF Export - Bilingual Support
-  const exportToPDF = async () => {
+  // PDF Export
+  const exportToPDF = () => {
     try {
       const loadingToast = toast.loading(language === 'bn' ? '📄 পিডিএফ তৈরি হচ্ছে...' : '📄 Generating PDF...');
       
       const doc = new jsPDF();
       
-      // Try to use Bangla font for PDF if language is Bangla
+      // Try to use Bangla font
       try {
-        // Import font (auto-registers)
-        await import('../../Fonts/Nikosh-bold.js');
         doc.setFont('Nikosh', 'bold');
-      } catch (fontError) {
-        console.warn('Bangla font not available, using default');
+      } catch (e) {
         doc.setFont('helvetica');
       }
       
-      // Title - Bilingual
+      // Title
       doc.setFontSize(18);
       doc.setTextColor(212, 175, 55);
       
@@ -538,12 +501,12 @@ const RamadanTable = () => {
       doc.text(`${language === 'bn' ? 'পদ্ধতি' : 'Method'}: ${methodNames[selectedMethod] || 'Karachi'}`, 20, 35);
       doc.text(`${language === 'bn' ? 'তৈরির তারিখ' : 'Generated'}: ${new Date().toLocaleDateString()}`, 20, 40);
       
-      // Table headers - Bilingual
+      // Table headers
       const headers = language === 'bn' 
         ? [['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']]
         : [['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting']];
       
-      // Table data - Bilingual
+      // Table data
       const rows = ramadanDays.map(day => {
         if (language === 'bn') {
           return [
@@ -584,7 +547,7 @@ const RamadanTable = () => {
         }
       });
       
-      // Footer - Bilingual
+      // Footer
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
@@ -597,7 +560,6 @@ const RamadanTable = () => {
         doc.text('Break fast at Iftar time', 20, finalY + 5);
       }
       
-      // Save with bilingual filename
       const fileName = language === 'bn'
         ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
         : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
@@ -751,7 +713,8 @@ const RamadanTable = () => {
     </div>
   );
 
-  if (loading || locationLoading) {
+  // Show loading skeleton while data is being fetched
+  if (loading || locationLoading || !isDataReady) {
     return (
       <>
         <RamadanSkeleton />
@@ -839,8 +802,8 @@ const RamadanTable = () => {
           </div>
         )}
 
-        {/* Countdown */}
-        {todayInfo && (
+        {/* Countdown - only shown when data is ready */}
+        {todayInfo && isDataReady && (
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="glass p-4 bg-gradient-to-r from-amber-900/20 to-transparent border border-amber-500/30 rounded-xl">
               <div className="flex justify-between mb-2">

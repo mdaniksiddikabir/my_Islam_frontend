@@ -253,62 +253,93 @@ class HijriService {
   /**
    * Generate Ramadan calendar with country-specific offsets
    */
-  async getRamadanCalendar(location) {
-    try {
-      // Get current Hijri date with offset
-      const hijriData = await this.getCurrentHijri(location);
-      const currentDay = hijriData.data.day;
-      const hijriYear = hijriData.data.year;
-      const offset = this.getCountryOffset(location);
-      
-      console.log(`📍 Location: ${location?.city}, ${location?.country}`);
-      console.log(`📅 Current Hijri: Year ${hijriYear}, Day ${currentDay}, Month ${hijriData.data.month}`);
-      console.log(`🔄 Offset applied: ${offset}`);
-      
-      // Calculate start of Ramadan based on current day
-      const today = new Date();
-      const startDate = new Date(today);
-      startDate.setDate(today.getDate() - (currentDay - 1));
-      
-      console.log(`🌙 Ramadan ${hijriYear} starts on: ${startDate.toDateString()}`);
-      
-      // Generate 30 days
-      const days = [];
-      
-      for (let i = 0; i < 30; i++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(startDate.getDate() + i);
-        
-        days.push({
-          day: i + 1,
-          gregorian: currentDate,
-          gregorianStr: currentDate.toISOString().split('T')[0],
-          hijri: {
-            day: i + 1,
-            month: 9,
-            year: hijriYear,
-            format: `${i + 1} Ramadan ${hijriYear}`
-          },
-          isToday: i + 1 === currentDay
-        });
-      }
-      
-      return {
-        year: hijriYear,
-        currentDay: currentDay,
-        days: days,
-        startDate: startDate,
-        endDate: new Date(startDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
-        offset: offset,
-        location: location
-      };
-      
-    } catch (error) {
-      console.error('Error generating Ramadan calendar:', error);
-      return this.getFallbackCalendar(location);
-    }
-  }
+  /**
+ * Generate Ramadan calendar with country-specific offsets
+ */
+async getRamadanCalendar(location) {
+  try {
+    // Get current Hijri date with offset (this gives us the correct 'currentDay' for the location)
+    const hijriData = await this.getCurrentHijri(location);
+    // `currentDay` here is already adjusted by the offset (e.g., 4 for BD, 5 for SA)
+    const currentDay = hijriData.data.day;
+    const hijriYear = hijriData.data.year;
+    const offset = this.getCountryOffset(location);
 
+    console.log(`📍 Location: ${location?.city}, ${location?.country}`);
+    console.log(`📅 Current Hijri from API: Day ${hijriData.data.day}, Month ${hijriData.data.month}, Year ${hijriYear}`);
+    console.log(`🔄 Offset applied: ${offset}. Adjusted currentDay for location: ${currentDay}`);
+
+    // --- FIX: Calculate the absolute start date using a known reference ---
+    // We know that for Saudi Arabia (offset 0), 1st Ramadan 1447 is Feb 18, 2026.
+    // We can calculate the start date for any location by adding their offset to this base date.
+
+    // Base Gregorian date for 1st Ramadan 1447 in Saudi Arabia
+    const baseStartDate = new Date(2026, 1, 18); // Feb 18, 2026
+
+    // Create a new date object for the start date of the user's location
+    const startDate = new Date(baseStartDate);
+    // Add the country offset (e.g., for -1, this becomes Feb 17? Wait, that's wrong. Let's think.)
+    // If a country started on Feb 19 (offset -1 compared to Saudi), their 1st Ramadan is Feb 19.
+    // Feb 19 is ONE DAY AFTER Feb 18. So the offset should be ADDED, not subtracted.
+    // Let's redefine: offset = days difference from Saudi start.
+    // Saudi start = Feb 18. BD start = Feb 19. BD is +1 day from Saudi.
+    // But your offset for BD is -1. This is the source of confusion.
+
+    // Let's redefine offset clearly for calculation:
+    // We'll use a new variable `daysFromSaudiStart`. We'll derive it from your existing `countryOffsets` map.
+    // Your map: 0 = same as Saudi (Feb 18). -1 = day after Saudi (Feb 19).
+    // So, daysFromSaudiStart = offset * -1 ? Let's calculate:
+    // If offset = 0 (SA), daysFromSaudiStart = 0. Start = Feb 18 + 0 = Feb 18. ✅
+    // If offset = -1 (BD), daysFromSaudiStart = 1. Start = Feb 18 + 1 = Feb 19. ✅
+
+    const daysFromSaudiStart = offset * -1;
+    const calculatedStartDate = new Date(baseStartDate);
+    calculatedStartDate.setDate(baseStartDate.getDate() + daysFromSaudiStart);
+
+    console.log(`🌙 Calculated Ramadan start for this location: ${calculatedStartDate.toDateString()}`);
+
+    // --- Generate 30 days starting from the calculated start date ---
+    const days = [];
+    for (let i = 0; i < 30; i++) {
+      const currentDate = new Date(calculatedStartDate);
+      currentDate.setDate(calculatedStartDate.getDate() + i);
+
+      days.push({
+        day: i + 1,
+        gregorian: currentDate,
+        gregorianStr: currentDate.toISOString().split('T')[0],
+        hijri: {
+          day: i + 1,
+          month: 9,
+          year: hijriYear,
+          format: `${i + 1} Ramadan ${hijriYear}`
+        },
+        // `currentDay` (from the adjusted API data) tells us which day is "today" for this location
+        isToday: i + 1 === currentDay
+      });
+    }
+
+    // Verify the first few days
+    console.log('📆 First 5 days of Ramadan for this location:');
+    days.slice(0, 5).forEach(d => {
+      console.log(`Day ${d.day}: ${d.gregorianStr} ${d.isToday ? ' (TODAY)' : ''}`);
+    });
+
+    return {
+      year: hijriYear,
+      currentDay: currentDay,
+      days: days,
+      startDate: calculatedStartDate,
+      endDate: new Date(calculatedStartDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
+      offset: offset,
+      location: location
+    };
+
+  } catch (error) {
+    console.error('Error generating Ramadan calendar:', error);
+    return this.getFallbackCalendar(location);
+  }
+ }
   /**
    * Fallback calendar with country-specific dates
    */

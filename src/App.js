@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsProvider'; // Fixed import
+import { SettingsProvider } from './context/SettingsContext.js'; // Fixed import
 
 // Pages
 import HomePage from './pages/HomePage';

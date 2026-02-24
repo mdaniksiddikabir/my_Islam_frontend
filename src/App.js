@@ -5,7 +5,9 @@ import { Toaster } from 'react-hot-toast';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext.js'; // Fixed import
+import { SettingsProvider } from './context/SettingsContext.js';
+import { LocationProvider } from './context/LocationContext'; // ✅ Add this if you have it
+import { RamadanProvider } from './context/RamadanContext'; // ✅ ADD THIS IMPORT
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -50,62 +52,66 @@ function App() {
           <AuthProvider>
             <ThemeProvider>
               <SettingsProvider>
-                <Router>
-                  <div className="min-h-screen bg-gradient-to-br from-[#0a2a3b] to-[#1a3f54] text-white">
-                    <Navbar />
-                    <main className="pt-20 pb-10 px-4 max-w-7xl mx-auto">
-                      <Routes>
-                        {/* Public Routes */}
-                        <Route path="/" element={<HomePage />} />
-                        <Route path="/login" element={<LoginPage />} />
-                        <Route path="/register" element={<Register />} />
-                        <Route path="/forgot-password" element={<ForgotPassword />} />
-                        <Route path="/reset-password/:token" element={<ResetPassword />} />
-                        <Route path="/prayer" element={<PrayerPage />} />
-                        <Route path="/qibla" element={<QiblaPage />} />
-                        <Route path="/quran" element={<QuranPage />} />
-                        <Route path="/ramadan" element={<RamadanPage />} />
-                        <Route path="/calendar" element={<CalendarPage />} />
-                        <Route path="/duas" element={<DuaPage />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                        
-                        {/* ✅ PROTECTED ROUTES */}
-                        <Route 
-                          path="/dashboard" 
-                          element={
-                            <ProtectedRoute>
-                              <Dashboard />
-                            </ProtectedRoute>
-                          } 
+                <LocationProvider> {/* ✅ ADD THIS (create if needed) */}
+                  <RamadanProvider> {/* ✅ ADD RAMADAN PROVIDER HERE */}
+                    <Router>
+                      <div className="min-h-screen bg-gradient-to-br from-[#0a2a3b] to-[#1a3f54] text-white">
+                        <Navbar />
+                        <main className="pt-20 pb-10 px-4 max-w-7xl mx-auto">
+                          <Routes>
+                            {/* Public Routes */}
+                            <Route path="/" element={<HomePage />} />
+                            <Route path="/login" element={<LoginPage />} />
+                            <Route path="/register" element={<Register />} />
+                            <Route path="/forgot-password" element={<ForgotPassword />} />
+                            <Route path="/reset-password/:token" element={<ResetPassword />} />
+                            <Route path="/prayer" element={<PrayerPage />} />
+                            <Route path="/qibla" element={<QiblaPage />} />
+                            <Route path="/quran" element={<QuranPage />} />
+                            <Route path="/ramadan" element={<RamadanPage />} />
+                            <Route path="/calendar" element={<CalendarPage />} />
+                            <Route path="/duas" element={<DuaPage />} />
+                            <Route path="/settings" element={<SettingsPage />} />
+                            
+                            {/* ✅ PROTECTED ROUTES */}
+                            <Route 
+                              path="/dashboard" 
+                              element={
+                                <ProtectedRoute>
+                                  <Dashboard />
+                                </ProtectedRoute>
+                              } 
+                            />
+                            
+                            <Route 
+                              path="/profile" 
+                              element={
+                                <ProtectedRoute>
+                                  <ProfilePage />
+                                </ProtectedRoute>
+                              } 
+                            />
+                            
+                            {/* 404 Route */}
+                            <Route path="*" element={<NotFoundPage />} />
+                          </Routes>
+                        </main>
+                        <Footer />
+                        <Toaster 
+                          position="bottom-right"
+                          toastOptions={{
+                            duration: 4000,
+                            style: {
+                              background: '#1a3f54',
+                              color: '#fff',
+                              border: '1px solid #d4af37',
+                            },
+                          }}
                         />
-                        
-                        <Route 
-                          path="/profile" 
-                          element={
-                            <ProtectedRoute>
-                              <ProfilePage />
-                            </ProtectedRoute>
-                          } 
-                        />
-                        
-                        {/* 404 Route */}
-                        <Route path="*" element={<NotFoundPage />} />
-                      </Routes>
-                    </main>
-                    <Footer />
-                    <Toaster 
-                      position="bottom-right"
-                      toastOptions={{
-                        duration: 4000,
-                        style: {
-                          background: '#1a3f54',
-                          color: '#fff',
-                          border: '1px solid #d4af37',
-                        },
-                      }}
-                    />
-                  </div>
-                </Router>
+                      </div>
+                    </Router>
+                  </RamadanProvider> {/* ✅ CLOSE RAMADAN PROVIDER */}
+                </LocationProvider> {/* ✅ CLOSE LOCATION PROVIDER */}
               </SettingsProvider>
             </ThemeProvider>
           </AuthProvider>

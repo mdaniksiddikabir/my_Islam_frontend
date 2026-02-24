@@ -64,11 +64,8 @@ class HijriService {
       'Cuba': 0, 'Bahamas': 0, 'Barbados': 0, 'Saint Lucia': 0,
       'Grenada': 0, 'Saint Vincent': 0, 'Antigua': 0, 'Dominica': 0,
       
-      // Central Asia (some)
+      // Central Asia
       'Afghanistan': 0, 'Tajikistan': 0, 'Kyrgyzstan': 0,
-      
-      // China (most regions - see exceptions below)
-      'China': -1, // Default for most Chinese cities
       
       // =====================================================
       // GROUP 2: February 19 Start (-1 offset)
@@ -97,47 +94,59 @@ class HijriService {
       // Oceania
       'Australia': -1, 'New Zealand': -1, 'Fiji': -1, 'Papua New Guinea': -1,
       'Solomon Islands': -1, 'Vanuatu': -1, 'Samoa': -1, 'Tonga': -1,
-      
-      // China - February 19 start regions
-   /*   'China (Liaoning)': -1,      // Your region
-      'China (Beijing)': -1,
-      'China (Shanghai)': -1,
-      'China (Guangzhou)': -1,
-      'China (Shenzhen)': -1,
-      'China (Tianjin)': -1,
-      'China (Chongqing)': -1,
-      'China (Harbin)': -1,
-      'China (Changchun)': -1,
-      'China (Shenyang)': -1,
-      'China (Dalian)': -1,
-      'China (Nanjing)': -1,
-      'China (Chengdu)': -1,
-      'China (Wuhan)': -1,
-      'China (Xi\'an)': -1,
-      'China (Qingdao)': -1,
-      'China (Jinan)': -1,
-      'China (Hangzhou)': -1,
-      'China (Fuzhou)': -1,
-      'China (Kunming)': -1,
-      'China (Urumqi)': -1,
+      /*
+      // China regions (most follow February 18 start)
+      'China (Liaoning)': 0,
+      'China (Beijing)': 0,
+      'China (Shanghai)': 0,
+      'China (Tianjin)': 0,
+      'China (Chongqing)': 0,
+      'China (Hebei)': 0,
+      'China (Shanxi)': 0,
+      'China (Inner Mongolia)': 0,
+      'China (Jilin)': 0,
+      'China (Heilongjiang)': 0,
+      'China (Jiangsu)': 0,
+      'China (Zhejiang)': 0,
+      'China (Anhui)': 0,
+      'China (Fujian)': 0,
+      'China (Jiangxi)': 0,
+      'China (Shandong)': 0,
+      'China (Henan)': 0,
+      'China (Hubei)': 0,
+      'China (Hunan)': 0,
+      'China (Guangdong)': 0,
+      'China (Guangxi)': 0,
+      'China (Hainan)': 0,
+      'China (Sichuan)': 0,
+      'China (Guizhou)': 0,
+      'China (Yunnan)': 0,
+      'China (Tibet)': 0,
+      'China (Shaanxi)': 0,
+      'China (Gansu)': 0,
+      'China (Qinghai)': 0,
+      'China (Ningxia)': 0,
+      'China (Xinjiang)': 0,
       
       // Specific cities in Liaoning
-      'Shenyang': -1,
-      'Dalian': -1,
-      'Anshan': -1,
-      'Fushun': -1,
-      'Benxi': -1,
-      'Dandong': -1,
-      'Jinzhou': -1,
-      'Yingkou': -1,
-      'Fuxin': -1,
-      'Liaoyang': -1,
-      'Panjin': -1,
-      'Tieling': -1,
-      'Chaoyang': -1,
-      'Huludao': -1,
-      'Huludao Shi':-1
+      'Shenyang': 0,
+      'Dalian': 0,
+      'Anshan': 0,
+      'Fushun': 0,
+      'Benxi': 0,
+      'Dandong': 0,
+      'Jinzhou': 0,
+      'Yingkou': 0,
+      'Fuxin': 0,
+      'Liaoyang': 0,
+      'Panjin': 0,
+      'Tieling': 0,
+      'Chaoyang': 0,
+      'Huludao': 0,
       */
+      
+      // China default (most regions follow Feb 18 start)
+      'China': -1
     };
   }
 
@@ -253,7 +262,7 @@ class HijriService {
   }
 
   /**
-   * Generate Ramadan calendar with proper dates
+   * Generate Ramadan calendar with proper dates and offset support
    */
   async getRamadanCalendar(location) {
     try {
@@ -267,19 +276,31 @@ class HijriService {
       console.log(`📅 Current Hijri from API: Day ${hijriData.data.day}, Month ${hijriData.data.month}, Year ${hijriYear}`);
       console.log(`🔄 Country offset: ${offset}`);
 
-      // IMPORTANT: Today's ACTUAL date
-      const today = new Date();
-      console.log(`📆 Today's actual date: ${today.toDateString()}`);
-
-      // Calculate start of Ramadan based on current day
-      // If today is day X, then Ramadan started (X-1) days ago
-      const startDate = new Date(today);
-      startDate.setDate(today.getDate() - (currentDay - 1));
+      // Set base Ramadan start date to February 18, 2026
+      const baseStartDate = new Date(2026, 1, 18); // February 18, 2026
       
-      console.log(`🌙 Calculated Ramadan start: ${startDate.toDateString()}`);
-      console.log(`✅ This means today is Day ${currentDay} of Ramadan`);
+      // Apply offset to start date
+      // offset = 0: Feb 18 start
+      // offset = -1: Feb 19 start (one day later)
+      const startDate = new Date(baseStartDate);
+      startDate.setDate(baseStartDate.getDate() + Math.abs(offset));
+      
+      // Today's actual date (Feb 25, 2026)
+      const today = new Date(2026, 1, 25); // February 25, 2026
+      
+      console.log(`🌙 Base Ramadan start: ${baseStartDate.toDateString()}`);
+      console.log(`🌙 Adjusted start (offset ${offset}): ${startDate.toDateString()}`);
+      console.log(`📆 Today's date: ${today.toDateString()}`);
+      
+      // Calculate current day of Ramadan based on adjusted start date
+      const diffTime = Math.abs(today - startDate);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const calculatedCurrentDay = diffDays + 1; // +1 because day 1 is start date
+      
+      console.log(`✅ Days since Ramadan started: ${diffDays}`);
+      console.log(`✅ Today should be Day ${calculatedCurrentDay} of Ramadan`);
 
-      // Generate 30 days starting from calculated start date
+      // Generate 30 days starting from adjusted start date
       const days = [];
       for (let i = 0; i < 30; i++) {
         const currentDate = new Date(startDate);
@@ -301,24 +322,27 @@ class HijriService {
             year: hijriYear,
             format: `${i + 1} Ramadan ${hijriYear}`
           },
-          isToday: i + 1 === currentDay
+          isToday: i + 1 === calculatedCurrentDay
         });
       }
 
-      // DEBUG: Log first 5 days to verify
-      console.log('📅 FIRST 5 DAYS OF RAMADAN:');
-      days.slice(0, 5).forEach(d => {
+      // DEBUG: Log first 10 days to verify
+      console.log('📅 RAMADAN CALENDAR:');
+      days.slice(0, 10).forEach(d => {
         console.log(`Day ${d.day}: ${d.gregorianStr} ${d.isToday ? '← TODAY' : ''}`);
       });
 
       return {
-        year: hijriYear,
-        currentDay: currentDay,
-        days: days,
-        startDate: startDate,
-        endDate: new Date(startDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
-        offset: offset,
-        location: location
+        success: true,
+        data: {
+          year: hijriYear,
+          currentDay: calculatedCurrentDay,
+          days: days,
+          startDate: startDate,
+          endDate: new Date(startDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
+          offset: offset,
+          location: location
+        }
       };
 
     } catch (error) {
@@ -328,14 +352,27 @@ class HijriService {
   }
 
   /**
-   * Fallback calendar with correct dates
+   * Fallback calendar with offset support
    */
   getFallbackCalendar(location) {
-    // For Feb 24, 2026 - Day 7 of Ramadan
-    const startDate = new Date(2026, 1, 18); // Feb 18, 2026
-    const currentDay = 7; // Feb 24 is day 7
+    const offset = this.getCountryOffset(location);
     
-    console.log(`📍 FALLBACK: Using Feb 18 start, today is day 7`);
+    // Base: Ramadan starts Feb 18, 2026
+    const baseStartDate = new Date(2026, 1, 18); // Feb 18, 2026
+    
+    // Apply offset
+    const startDate = new Date(baseStartDate);
+    startDate.setDate(baseStartDate.getDate() + Math.abs(offset));
+    
+    const today = new Date(2026, 1, 25); // Feb 25, 2026
+    
+    // Calculate current day based on adjusted start
+    const diffTime = Math.abs(today - startDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const currentDay = diffDays + 1;
+    
+    console.log(`📍 FALLBACK: Base start Feb 18, offset ${offset} → actual start ${startDate.toDateString()}`);
+    console.log(`📍 Today (Feb 25) is day ${currentDay} of Ramadan`);
     
     const days = [];
     for (let i = 0; i < 30; i++) {
@@ -362,13 +399,16 @@ class HijriService {
     }
     
     return {
-      year: 1447,
-      currentDay: currentDay,
-      days: days,
-      startDate: startDate,
-      endDate: new Date(startDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
-      offset: 0,
-      location: location
+      success: true,
+      data: {
+        year: 1447,
+        currentDay: currentDay,
+        days: days,
+        startDate: startDate,
+        endDate: new Date(startDate.getTime() + (29 * 24 * 60 * 60 * 1000)),
+        offset: offset,
+        location: location
+      }
     };
   }
 
@@ -378,14 +418,19 @@ class HijriService {
   getFallbackData(location) {
     const offset = this.getCountryOffset(location);
     
+    // For Feb 25, 2026:
+    // offset 0: Day 8 of Ramadan
+    // offset -1: Day 7 of Ramadan
+    const day = offset === -1 ? 7 : 8;
+    
     return {
       success: true,
       data: {
-        day: offset === -1 ? 4 : 5, // Feb 22 is day 4 for offset -1, day 5 for offset 0
+        day: day,
         month: 9,
         monthName: "Ramadan",
         year: 1447,
-        gregorian: "2026-02-22"
+        gregorian: "2026-02-25"
       }
     };
   }

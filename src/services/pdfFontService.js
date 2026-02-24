@@ -12,7 +12,7 @@ class PDFFontService {
   async registerBanglaFont() {
     try {
       // Try to load the font from public folder
-      const fontData = await this.loadFontData('/fonts/Nikosh.ttf');
+      const fontData = await this.loadFontData('../Fonts/Nikosh.ttf');
       
       if (fontData) {
         // Register the font with jsPDF

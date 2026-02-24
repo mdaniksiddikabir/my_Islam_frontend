@@ -1,49 +1,36 @@
+
+
 import api from './api';
 
-// Cache for prayer times to prevent repeated failures
+// Simple in-memory cache
 const prayerCache = new Map();
 
 export const getPrayerTimes = async (lat, lng, method = 4, date = null) => {
   const cacheKey = `${lat},${lng},${method},${date || 'today'}`;
   
-  // Check memory cache first (fastest)
+  // Check cache first
   if (prayerCache.has(cacheKey)) {
-    console.log(`✅ Cache HIT for ${date || 'today'}`);
     return prayerCache.get(cacheKey);
   }
   
   try {
     const params = { lat, lng, method };
+    if (date) params.date = date;
     
-    if (date) {
-      params.date = date;
-    }
+    const response = await api.get('/api/prayer/times', { params });
     
-    console.log(`📡 Fetching times for ${date || 'today'}...`);
-    
-    const response = await api.get('/api/prayer/times', { 
-      params,
-      timeout: 10000 // 10 second timeout
-    });
-    
-    if (response.data && response.data.success && response.data.data) {
-      console.log(`✅ SUCCESS for ${date || 'today'}`);
-      
-      // Store in cache
+    if (response.data?.success && response.data?.data) {
+      // Store in cache for 1 hour
       prayerCache.set(cacheKey, response.data.data);
-      
-      // Clear cache after 1 hour
       setTimeout(() => prayerCache.delete(cacheKey), 60 * 60 * 1000);
-      
       return response.data.data;
     }
   } catch (error) {
-    console.error(`❌ Failed for ${date || 'today'}:`, error.message);
+    console.error(`Error for ${date}:`, error.message);
   }
   
   return null;
 };
-
 // ... rest of your functions
 // ... rest of your functions
 

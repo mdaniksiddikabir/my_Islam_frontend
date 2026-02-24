@@ -56,8 +56,8 @@ const Login = () => {
     try {
       setLoading(true);
       
-      // Call login service
-      const response = await loginService(email, password);
+      // ✅ FIXED: Added rememberMe parameter to match service
+      const response = await loginService(email, password, rememberMe);
       
       // Check if login was successful
       if (response?.success && response?.data?.user) {

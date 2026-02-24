@@ -11,7 +11,7 @@ import CalendarPage from './pages/CalendarPage';
 import DuaPage from './pages/DuaPage';
 import SettingsPage from './pages/SettingsPage';
 
-// User Components (from components/user folder)
+// User Components
 import Login from './components/user/Login';
 import Register from './components/user/Register';
 import Dashboard from './components/user/Dashboard';
@@ -25,8 +25,9 @@ import ProtectedRoute from './components/common/ProtectedRoute';
 import Loader from './components/common/Loader';
 
 const AppRoutes = () => {
-  const { loading } = useAuth();
+  const { loading, isAuthenticated } = useAuth();
 
+  // Show loader while checking authentication
   if (loading) {
     return <Loader fullScreen message="Loading application..." />;
   }
@@ -42,13 +43,13 @@ const AppRoutes = () => {
       <Route path="/duas" element={<DuaPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       
-      {/* ========== AUTH ROUTES (Public) ========== */}
+      {/* ========== AUTH ROUTES ========== */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password/:token" element={<ResetPassword />} />
       
-      {/* ========== PROTECTED ROUTES (Require Login) ========== */}
+      {/* ========== PROTECTED ROUTES ========== */}
       <Route path="/dashboard" element={
         <ProtectedRoute>
           <Dashboard />

@@ -2,14 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes, getCalculationMethods } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations'; // Fixed import path
+import { useLocation } from '../../hooks/useLocations';
 import hijriService from '../../services/hijriService';
+import citySearchService from '../../services/citySearchService';
+import pdfFontService from '../../services/pdfFontService'; // Import the PDF font service
 import { format } from 'date-fns';
 import { bn, enUS } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { getBangladeshOffset } from '../../services/bangladeshOffsets';
+import RamadanSkeleton from './RamadanSkeleton';
+import LoadingProgress from '../common/LoadingProgress';
 
 // Cache system
 const CACHE_KEY = 'ramadan_cache';
@@ -66,9 +70,11 @@ const RamadanTable = () => {
   // Search state
   const [searchCity, setSearchCity] = useState('');
   const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [showCitySearch, setShowCitySearch] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [popularCities, setPopularCities] = useState([]);
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
@@ -106,6 +112,11 @@ const RamadanTable = () => {
     99: 'Custom'
   };
 
+  // Load popular cities on mount
+  useEffect(() => {
+    setPopularCities(citySearchService.getPopularCities());
+  }, []);
+
   // Load calculation methods on mount
   useEffect(() => {
     loadCalculationMethods();
@@ -137,7 +148,6 @@ const RamadanTable = () => {
         const { data, timestamp, location, method, offsets } = JSON.parse(cached);
         const now = Date.now();
         
-        // Check if cache is still valid and matches current location/method/offset setting
         if (now - timestamp < CACHE_DURATION && 
             location === `${userLocation?.lat},${userLocation?.lng}` && 
             method === selectedMethod &&
@@ -185,7 +195,6 @@ const RamadanTable = () => {
   };
 
   const applyBangladeshOffset = (sehriTime, iftarTime, city) => {
-    // Only apply offsets if useOffsets is true
     if (!useOffsets) return { sehri: sehriTime, iftar: iftarTime };
     
     if (selectedLocation?.country === 'Bangladesh') {
@@ -221,10 +230,10 @@ const RamadanTable = () => {
         return;
       }
       
-      const calendarData = await hijriService.getRamadanCalendar(location);
+      const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
       
       const offset = hijriService.getCountryOffset(location);
-      const description = hijriService.getOffsetDescription(location);
+      const description = hijriService.getOffsetDescription(location, useOffsets);
       const group = offset === 0 ? 'Group 1 (Feb 18 Start)' : 'Group 2 (Feb 19 Start)';
       
       setOffsetInfo({ offset, description, group });
@@ -236,81 +245,102 @@ const RamadanTable = () => {
         endDate: calendarData.endDate
       });
       
-      const days = [];
-      let todayData = null;
+      // Create placeholder days for immediate display
+      const placeholderDays = calendarData.days.map(day => ({
+        day: day.day,
+        gregorianDate: day.gregorian,
+        gregorianStr: day.gregorianStr,
+        hijriDate: day.hijri.format,
+        weekday: weekdays[day.gregorian.getDay()],
+        shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+        sehri24: '--:--',
+        sehri12: '--:--',
+        iftar24: '--:--',
+        iftar12: '--:--',
+        fastingHours: '--:--',
+        isToday: day.isToday,
+        isLoading: true
+      }));
       
+      setRamadanDays(placeholderDays);
+      
+      // Fetch ALL 30 days in PARALLEL
       const toastId = toast.loading(`Fetching prayer times for 30 days...`);
       
-      // Fetch times for each day
-      for (let i = 0; i < calendarData.days.length; i++) {
-        const day = calendarData.days[i];
-        
-        const progress = Math.round(((i + 1) / calendarData.days.length) * 100);
-        setLoadingProgress(progress);
-        toast.loading(`Fetching day ${i + 1}/30: ${progress}%`, { id: toastId });
-        
-        let sehriTime = '05:30';
-        let iftarTime = '18:15';
-        
-        if (location) {
-          try {
-            // Get prayer times for this specific date
-            const prayerData = await getPrayerTimes(
-              location.lat,
-              location.lng,
-              selectedMethod,
-              day.gregorianStr
-            );
-            
-            sehriTime = prayerData?.timings?.Fajr || '05:30';
-            iftarTime = prayerData?.timings?.Maghrib || '18:15';
-            
-            // Apply Bangladesh-specific offsets if enabled
-            if (location.country === 'Bangladesh') {
-              const adjusted = applyBangladeshOffset(sehriTime, iftarTime, location.city);
-              sehriTime = adjusted.sehri;
-              iftarTime = adjusted.iftar;
-            }
-            
-          } catch (error) {
-            console.error(`Failed to get times for day ${day.day}:`, error);
+      const fetchPromises = calendarData.days.map(async (day) => {
+        try {
+          const prayerData = await getPrayerTimes(
+            location.lat,
+            location.lng,
+            selectedMethod,
+            day.gregorianStr
+          );
+          
+          let sehriTime = prayerData?.timings?.Fajr || '05:30';
+          let iftarTime = prayerData?.timings?.Maghrib || '18:15';
+          
+          // Apply Bangladesh-specific offsets if needed
+          if (location.country === 'Bangladesh') {
+            const adjusted = applyBangladeshOffset(sehriTime, iftarTime, location.city);
+            sehriTime = adjusted.sehri;
+            iftarTime = adjusted.iftar;
           }
+          
+          return {
+            day: day.day,
+            sehri24: sehriTime,
+            iftar24: iftarTime,
+            success: true
+          };
+        } catch (error) {
+          console.error(`Failed for day ${day.day}:`, error);
+          return {
+            day: day.day,
+            sehri24: '05:30',
+            iftar24: '18:15',
+            success: false
+          };
         }
-
-        const dayData = {
+      });
+      
+      // Wait for all promises to resolve
+      const results = await Promise.all(fetchPromises);
+      
+      // Update progress
+      setLoadingProgress(100);
+      
+      // Update days with real times
+      const updatedDays = calendarData.days.map((day, index) => {
+        const result = results.find(r => r.day === day.day) || results[index];
+        
+        return {
           day: day.day,
           gregorianDate: day.gregorian,
           gregorianStr: day.gregorianStr,
           hijriDate: day.hijri.format,
           weekday: weekdays[day.gregorian.getDay()],
           shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
-          sehri24: sehriTime,
-          sehri12: convertTo12Hour(sehriTime),
-          iftar24: iftarTime,
-          iftar12: convertTo12Hour(iftarTime),
+          sehri24: result.sehri24,
+          sehri12: convertTo12Hour(result.sehri24),
+          iftar24: result.iftar24,
+          iftar12: convertTo12Hour(result.iftar24),
           isToday: day.isToday,
-          isPast: day.gregorian < new Date(),
-          fastingHours: calculateFastingHours(sehriTime, iftarTime),
+          fastingHours: calculateFastingHours(result.sehri24, result.iftar24),
+          isLoading: false
         };
-
-        if (day.isToday) {
-          todayData = dayData;
-        }
-
-        days.push(dayData);
-        
-        // Small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-
-      toast.success(`Loaded times for ${days.length} days`, { id: toastId });
+      });
       
+      setRamadanDays(updatedDays);
+      
+      // Find today's data
+      const todayData = updatedDays.find(d => d.isToday);
       setTodayInfo(todayData);
-      setRamadanDays(days);
+      
+      toast.success(`Loaded times for ${updatedDays.length} days`, { id: toastId });
       
       // Save to cache
       saveToCache({
-        days,
+        days: updatedDays,
         todayInfo: todayData,
         ramadanInfo: {
           year: calendarData.year,
@@ -418,98 +448,191 @@ const RamadanTable = () => {
     });
   };
 
+  // City search function
   const searchCityByName = async () => {
-    if (!searchCity.trim()) return;
-    
+    if (!searchCity.trim()) {
+      toast.error('Please enter a city name');
+      return;
+    }
+
+    setSearching(true);
+    setSearchResults([]);
+
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchCity)}&limit=10`
-      );
-      const data = await response.json();
+      const results = await citySearchService.searchCities(searchCity);
       
-      setSearchResults(data.map(item => ({
-        name: item.display_name.split(',')[0],
-        fullName: item.display_name,
-        lat: parseFloat(item.lat),
-        lng: parseFloat(item.lon),
-        country: item.display_name.split(',').pop().trim(),
-        city: item.display_name.split(',')[0].trim()
-      })));
+      if (results.length === 0) {
+        toast.error('No cities found. Please try a different name.');
+      }
+      
+      setSearchResults(results);
     } catch (error) {
-      console.error('Error searching city:', error);
-      toast.error('City search failed');
+      console.error('Search error:', error);
+      toast.error(error.message || 'Search failed. Please try again.');
+    } finally {
+      setSearching(false);
     }
   };
 
   const selectCity = (city) => {
-    setSelectedLocation(city);
-    updateLocation(city);
+    // Close modal immediately
     setShowCitySearch(false);
     setSearchCity('');
     setSearchResults([]);
-    // Clear last loaded location to force reload
-    setLastLoadedLocation(null);
+    
+    // Show loading toast
+    const loadingToast = toast.loading(`Loading calendar for ${city.name}...`);
+    
+    // Update location
+    updateLocation({
+      lat: city.lat,
+      lng: city.lng,
+      city: city.name,
+      country: city.country
+    });
+    
+    toast.success(`Calendar loaded for ${city.name}, ${city.country}`, {
+      id: loadingToast
+    });
   };
 
-  const exportToPDF = () => {
+  const exportToPDF = async () => {
     try {
+      // Show loading toast
+      const loadingToast = toast.loading(language === 'bn' ? 'পিডিএফ তৈরি হচ্ছে...' : 'Generating PDF...');
+      
       const doc = new jsPDF();
-      setupPDFFont(doc, language);
       
+      // Try to load Bangla font if language is Bangla
+      if (language === 'bn') {
+        await pdfFontService.registerBanglaFont();
+      }
+      
+      const fontName = pdfFontService.getFont();
+      const isBanglaAvailable = pdfFontService.isBanglaAvailable();
+      
+      // Set font
+      doc.setFont(fontName);
+      
+      // ===== TITLE SECTION =====
       doc.setFontSize(18);
-      doc.setTextColor(212, 175, 55);
+      doc.setTextColor(212, 175, 55); // Gold color
       
-      const title = language === 'bn' 
-        ? `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`
-        : `Ramadan ${ramadanInfo.year} - 30 Days Schedule`;
+      let title;
+      if (language === 'bn' && isBanglaAvailable) {
+        title = `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`;
+      } else {
+        title = `Ramadan ${ramadanInfo.year} - 30 Days Schedule`;
+      }
       doc.text(title, 14, 22);
       
+      // ===== LOCATION & INFO SECTION =====
       doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
+      doc.setTextColor(100, 100, 100); // Gray color
       
       const locationText = selectedLocation 
         ? `${selectedLocation.city}, ${selectedLocation.country}`
         : 'Location not set';
       doc.text(locationText, 14, 30);
+      
       doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 14, 35);
       doc.text(`Offsets: ${useOffsets ? 'Enabled' : 'Disabled'}`, 14, 40);
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 45);
       
-      const tableColumn = language === 'bn' 
-        ? ['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']
-        : ['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting'];
+      // ===== TABLE SECTION =====
+      // Headers based on language and font availability
+      let tableColumn;
+      if (language === 'bn' && isBanglaAvailable) {
+        tableColumn = ['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়'];
+      } else {
+        tableColumn = ['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting'];
+      }
       
-      const tableRows = ramadanDays.map(day => [
-        day.day,
-        formatDayMonth(day.gregorianDate),
-        day.hijriDate,
-        language === 'bn' ? banglaWeekdays[day.gregorianDate.getDay()] : day.shortWeekday,
-        day.sehri12,
-        day.iftar12,
-        day.fastingHours
-      ]);
+      // Prepare table data
+      const tableRows = ramadanDays.map(day => {
+        if (language === 'bn' && isBanglaAvailable) {
+          // Bangla format with Bangla font
+          return [
+            day.day.toString(),
+            format(new Date(day.gregorianDate), 'dd MMM', { locale: bn }),
+            day.hijriDate,
+            banglaWeekdays[new Date(day.gregorianDate).getDay()],
+            day.sehri12,
+            day.iftar12,
+            day.fastingHours
+          ];
+        } else {
+          // English format (fallback)
+          return [
+            day.day.toString(),
+            format(new Date(day.gregorianDate), 'dd MMM', { locale: enUS }),
+            day.hijriDate,
+            day.shortWeekday,
+            day.sehri12,
+            day.iftar12,
+            day.fastingHours
+          ];
+        }
+      });
       
+      // Generate table
       doc.autoTable({
         head: [tableColumn],
         body: tableRows,
         startY: 50,
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [212, 175, 55], textColor: [26, 63, 84] },
-        alternateRowStyles: { fillColor: [240, 240, 240] }
+        styles: { 
+          fontSize: 8,
+          font: fontName,
+          cellPadding: 2,
+          overflow: 'linebreak'
+        },
+        headStyles: { 
+          fillColor: [212, 175, 55], 
+          textColor: [26, 63, 84],
+          fontStyle: 'bold'
+        },
+        alternateRowStyles: { 
+          fillColor: [240, 240, 240] 
+        },
+        columnStyles: {
+          0: { cellWidth: 15 }, // Day
+          1: { cellWidth: 25 }, // Date
+          2: { cellWidth: 30 }, // Hijri
+          3: { cellWidth: 20 }, // Weekday
+          4: { cellWidth: 25 }, // Sehri
+          5: { cellWidth: 25 }, // Iftar
+          6: { cellWidth: 25 }  // Fasting
+        }
       });
       
+      // ===== FOOTER SECTION =====
       const finalY = doc.lastAutoTable.finalY + 10;
       doc.setFontSize(8);
       doc.setTextColor(100, 100, 100);
-      doc.text('Stop eating before Sehri time', 14, finalY);
-      doc.text('Break fast at Iftar time', 14, finalY + 5);
       
-      doc.save(`Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`);
-      toast.success('PDF downloaded successfully');
+      if (language === 'bn' && isBanglaAvailable) {
+        doc.text('সেহরির সময়ে খাওয়া বন্ধ করুন', 14, finalY);
+        doc.text('ইফতারের সময়ে ইফতার করুন', 14, finalY + 5);
+        doc.text('সময় আপনার অবস্থান অনুযায়ী নির্ভুল', 14, finalY + 10);
+      } else {
+        doc.text('Stop eating before Sehri time', 14, finalY);
+        doc.text('Break fast at Iftar time', 14, finalY + 5);
+        doc.text('Times are based on your exact location', 14, finalY + 10);
+      }
+      
+      // ===== SAVE FILE =====
+      const fileName = language === 'bn' && isBanglaAvailable
+        ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
+        : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
+      
+      doc.save(fileName);
+      
+      toast.dismiss(loadingToast);
+      toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
       
     } catch (error) {
       console.error('PDF generation error:', error);
-      toast.error('PDF generation failed');
+      toast.error(language === 'bn' ? 'পিডিএফ তৈরি করতে সমস্যা হয়েছে' : 'PDF generation failed');
     }
   };
 
@@ -537,11 +660,11 @@ const RamadanTable = () => {
       changeCity: 'Change City',
       searchCity: 'Search for your city',
       search: 'Search',
-      searchPlaceholder: 'Enter city name...',
+      searchPlaceholder: 'Enter city name (e.g., Dhaka, London, New York)',
       searchResults: 'Search Results',
       close: 'Close',
       loading: 'Loading...',
-      fetchingTimes: 'Fetching times...',
+      fetchingTimes: 'Fetching prayer times...',
       progress: 'Progress',
       calculationMethod: 'Calculation Method',
       changeMethod: 'Change Method',
@@ -552,7 +675,9 @@ const RamadanTable = () => {
       offsets: 'Use Local Offsets',
       offsetsEnabled: 'Enabled',
       offsetsDisabled: 'Disabled',
-      enableOffsets: 'Enable location-based adjustments'
+      enableOffsets: 'Enable location-based adjustments',
+      popularCities: 'Popular Cities',
+      searchNow: 'Search Now'
     },
     bn: {
       title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
@@ -577,11 +702,11 @@ const RamadanTable = () => {
       changeCity: 'শহর পরিবর্তন',
       searchCity: 'আপনার শহর খুঁজুন',
       search: 'অনুসন্ধান',
-      searchPlaceholder: 'শহরের নাম লিখুন...',
+      searchPlaceholder: 'শহরের নাম লিখুন (যেমন: ঢাকা, লন্ডন, নিউ ইয়র্ক)',
       searchResults: 'অনুসন্ধানের ফলাফল',
       close: 'বন্ধ',
       loading: 'লোড হচ্ছে...',
-      fetchingTimes: ' সময় আনা হচ্ছে...',
+      fetchingTimes: 'নামাজের সময় আনা হচ্ছে...',
       progress: 'অগ্রগতি',
       calculationMethod: 'গণনা পদ্ধতি',
       changeMethod: 'পদ্ধতি পরিবর্তন',
@@ -592,7 +717,9 @@ const RamadanTable = () => {
       offsets: 'স্থানীয় সমন্বয় ব্যবহার করুন',
       offsetsEnabled: 'সক্রিয়',
       offsetsDisabled: 'নিষ্ক্রিয়',
-      enableOffsets: 'অবস্থান-ভিত্তিক সমন্বয় সক্রিয় করুন'
+      enableOffsets: 'অবস্থান-ভিত্তিক সমন্বয় সক্রিয় করুন',
+      popularCities: 'জনপ্রিয় শহর',
+      searchNow: 'এখনই খুঁজুন'
     }
   };
 
@@ -600,23 +727,15 @@ const RamadanTable = () => {
 
   if (loading || locationLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <i className="fas fa-moon text-4xl text-[#d4af37] animate-pulse mb-4"></i>
-          <p className="text-white/70">{txt.loading}</p>
-          {loadingProgress > 0 && (
-            <>
-              <div className="w-64 h-2 bg-white/10 rounded-full mt-4 mx-auto">
-                <div 
-                  className="h-full bg-[#d4af37] rounded-full transition-all duration-300"
-                  style={{ width: `${loadingProgress}%` }}
-                />
-              </div>
-              <p className="text-sm text-white/50 mt-2">{txt.fetchingTimes} {loadingProgress}%</p>
-            </>
-          )}
-        </div>
-      </div>
+      <>
+        <RamadanSkeleton />
+        {loadingProgress > 0 && loadingProgress < 100 && (
+          <LoadingProgress 
+            progress={loadingProgress} 
+            message={`${txt.fetchingTimes} ${loadingProgress}%`} 
+          />
+        )}
+      </>
     );
   }
 
@@ -668,7 +787,8 @@ const RamadanTable = () => {
               <div className="glass px-4 py-2 flex items-center gap-3">
                 <i className="fas fa-map-marker-alt text-[#d4af37]"></i>
                 <div>
-                  <span>{selectedLocation.city}</span>
+                  <span className="font-bold">{selectedLocation.city}</span>
+                  <span className="text-sm text-white/50 ml-1">({selectedLocation.country})</span>
                   <div className="text-xs mt-1">
                     <span className="text-[#d4af37]">{offsetInfo.group}</span>
                   </div>
@@ -676,8 +796,10 @@ const RamadanTable = () => {
                 <button
                   onClick={() => setShowCitySearch(true)}
                   className="text-xs bg-[#d4af37]/20 px-2 py-1 rounded hover:bg-[#d4af37]/30 transition"
+                  title={txt.changeCity}
                 >
-                  <i className="fas fa-search"></i>
+                  <i className="fas fa-search mr-1"></i>
+                  {txt.changeCity}
                 </button>
               </div>
             ) : (
@@ -805,6 +927,7 @@ const RamadanTable = () => {
           <div className="glass max-w-md w-full p-6 rounded-lg max-h-[80vh] overflow-y-auto">
             <h3 className="text-xl font-bold mb-4">{txt.searchCity}</h3>
             
+            {/* Search Input */}
             <div className="flex gap-2 mb-4">
               <input
                 type="text"
@@ -814,46 +937,79 @@ const RamadanTable = () => {
                 placeholder={txt.searchPlaceholder}
                 className="flex-1 px-4 py-2 bg-white/5 border border-white/10 rounded-lg focus:border-[#d4af37] focus:outline-none"
                 autoFocus
+                disabled={searching}
               />
               <button
                 onClick={searchCityByName}
-                className="px-6 py-2 bg-[#d4af37] text-[#1a3f54] rounded-lg hover:bg-[#c4a037] transition"
+                disabled={searching}
+                className="px-6 py-2 bg-[#d4af37] text-[#1a3f54] rounded-lg hover:bg-[#c4a037] transition disabled:opacity-50 flex items-center gap-2"
               >
-                {txt.search}
+                {searching ? (
+                  <>
+                    <i className="fas fa-spinner fa-spin"></i>
+                    Searching...
+                  </>
+                ) : (
+                  txt.search
+                )}
               </button>
             </div>
-            
-            {searchResults.length > 0 && (
+
+            {/* Search Results */}
+            {searchResults.length > 0 ? (
               <div className="mt-4">
-                <h4 className="text-sm text-white/50 mb-2">{txt.searchResults}</h4>
+                <h4 className="text-sm text-white/50 mb-2">{txt.searchResults} ({searchResults.length})</h4>
                 <div className="max-h-60 overflow-y-auto space-y-2">
-                  {searchResults.map((city, index) => {
-                    const offset = hijriService.getCountryOffset(city);
-                    const group = offset === 0 ? 'Group 1' : 'Group 2';
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => selectCity(city)}
-                        className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition group"
-                      >
-                        <div className="font-bold">{city.name}</div>
-                        <div className="text-sm text-white/50 flex justify-between">
-                          <span>{city.country}</span>
-                          <span className={`text-xs px-2 py-0.5 rounded ${
-                            offset === 0 ? 'bg-blue-500/20 text-blue-400' : 'bg-emerald-500/20 text-emerald-400'
-                          }`}>
-                            {group}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                  {searchResults.map((city, index) => (
+                    <button
+                      key={index}
+                      onClick={() => selectCity(city)}
+                      className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition group"
+                    >
+                      <div className="font-bold">{city.name}</div>
+                      <div className="text-sm text-white/50 flex justify-between">
+                        <span>{city.country}</span>
+                        {city.state && <span className="text-xs text-white/30">{city.state}</span>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : searchCity.trim() !== '' && !searching && (
+              <div className="mt-4 p-4 bg-yellow-900/30 rounded-lg text-center">
+                <p className="text-yellow-500">
+                  <i className="fas fa-exclamation-triangle mr-2"></i>
+                  No cities found. Please try a different name.
+                </p>
+              </div>
+            )}
+
+            {/* Popular Cities */}
+            {popularCities.length > 0 && searchResults.length === 0 && !searching && (
+              <div className="mt-4">
+                <h4 className="text-sm text-white/50 mb-2">{txt.popularCities}</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {popularCities.slice(0, 6).map((city, index) => (
+                    <button
+                      key={index}
+                      onClick={() => selectCity(city)}
+                      className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-center transition"
+                    >
+                      <div className="font-bold text-sm">{city.name}</div>
+                      <div className="text-xs text-white/50">{city.country}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
-            
+
+            {/* Close Button */}
             <button
-              onClick={() => setShowCitySearch(false)}
+              onClick={() => {
+                setShowCitySearch(false);
+                setSearchCity('');
+                setSearchResults([]);
+              }}
               className="mt-4 text-sm text-white/50 hover:text-white w-full text-center"
             >
               {txt.close}

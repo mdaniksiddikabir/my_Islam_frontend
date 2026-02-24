@@ -94,7 +94,7 @@ class HijriService {
       // Oceania
       'Australia': -1, 'New Zealand': -1, 'Fiji': -1, 'Papua New Guinea': -1,
       'Solomon Islands': -1, 'Vanuatu': -1, 'Samoa': -1, 'Tonga': -1,
-    /*  
+      
       // China regions (most follow February 18 start)
       'China (Liaoning)': 0,
       'China (Beijing)': 0,
@@ -142,10 +142,10 @@ class HijriService {
       'Panjin': 0,
       'Tieling': 0,
       'Chaoyang': 0,
-      'Huludao': 0,*/
+      'Huludao': 0,
       
       // China default (most regions follow Feb 18 start)
-      'China': -1
+      'China': 0
     };
   }
 
@@ -357,7 +357,8 @@ class HijriService {
             year: hijriYear,
             format: `${i + 1} Ramadan ${hijriYear}`
           },
-          isToday: i + 1 === calculatedCurrentDay
+          isToday: i + 1 === calculatedCurrentDay,
+          shortWeekday: weekdays[currentDate.getDay()].substring(0, 3)
         });
       }
 
@@ -402,6 +403,8 @@ class HijriService {
     console.log(`📍 FALLBACK: Base start Feb 18, offset ${offset} → actual start ${startDate.toDateString()}`);
     console.log(`📍 Today (Feb 25) is day ${currentDay} of Ramadan`);
     
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
     const days = [];
     for (let i = 0; i < 30; i++) {
       const date = new Date(startDate);
@@ -422,7 +425,8 @@ class HijriService {
           year: 1447,
           format: `${i + 1} Ramadan 1447`
         },
-        isToday: i + 1 === currentDay
+        isToday: i + 1 === currentDay,
+        shortWeekday: weekdays[date.getDay()].substring(0, 3)
       });
     }
     
@@ -482,21 +486,34 @@ class HijriService {
   }
 
   /**
-   * Get complete Ramadan calendar with prayer times
+   * Get complete Ramadan calendar with prayer times and progress tracking
    * @param {Object} location - User location with lat/lng
    * @param {number} method - Calculation method ID
    * @param {boolean} useOffsets - Whether to apply country offsets
+   * @param {Function} onProgress - Progress callback (receives percentage 0-100)
    */
-  async getCompleteRamadanData(location, method = 1, useOffsets = false) {
+  async getCompleteRamadanData(location, method = 1, useOffsets = false, onProgress = null) {
     try {
+      // Initial progress
+      if (onProgress) onProgress(5);
+      
       // Get base Ramadan calendar
       const calendarData = await this.getRamadanCalendar(location);
       
+      if (onProgress) onProgress(15);
+      
       // Get prayer times for each day
       const daysWithTimes = [];
+      const totalDays = calendarData.days.length;
       
-      for (const day of calendarData.days) {
+      for (let i = 0; i < totalDays; i++) {
+        const day = calendarData.days[i];
+        
         try {
+          // Calculate progress: 15% to 95% range
+          const progress = 15 + Math.round((i + 1) / totalDays * 80);
+          if (onProgress) onProgress(progress);
+          
           const prayerResponse = await this.getPrayerTimesWithOffset(
             location,
             method,
@@ -507,9 +524,9 @@ class HijriService {
           let sehriTime = '';
           let iftarTime = '';
           let hijriDate = '';
-          let hijriDay = '';
-          let hijriMonth = '';
-          let hijriYear = '';
+          let hijriDay = day.hijri.day;
+          let hijriMonth = 'Ramadan';
+          let hijriYear = calendarData.year;
           
           // Extract data from response
           if (prayerResponse?.data?.timings) {
@@ -520,7 +537,7 @@ class HijriService {
           // Extract Hijri date info
           if (prayerResponse?.data?.date?.hijri) {
             hijriDate = prayerResponse.data.date.hijri.date || '';
-            hijriDay = prayerResponse.data.hijri?.day || day.day;
+            hijriDay = prayerResponse.data.hijri?.day || day.hijri.day;
             hijriMonth = prayerResponse.data.hijri?.month || 'Ramadan';
             hijriYear = prayerResponse.data.hijri?.year || calendarData.year;
           }
@@ -553,7 +570,13 @@ class HijriService {
             hijriYear: day.hijri.year
           });
         }
+        
+        // Small delay to prevent overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+      
+      // Final progress
+      if (onProgress) onProgress(100);
       
       return {
         ...calendarData,
@@ -634,5 +657,8 @@ class HijriService {
     }
   }
 }
+
+// Helper for weekdays (used in fallback)
+const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default new HijriService();

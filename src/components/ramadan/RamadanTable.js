@@ -10,7 +10,6 @@ import { bn, enUS } from 'date-fns/locale';
 import { toast } from 'react-hot-toast';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { getBangladeshOffset } from '../../services/bangladeshOffsets';
 
 // Import Bangla font
 import { fontNikoshBold } from '../../Fonts/Nikosh-bold.js';
@@ -22,7 +21,7 @@ const RamadanTable = () => {
   const [loading, setLoading] = useState(true);
   const [todayInfo, setTodayInfo] = useState(null);
   const [selectedMethod, setSelectedMethod] = useState(1);
-  const [useOffsets, setUseOffsets] = useState(true);
+  const [useOffsets, setUseOffsets] = useState(false); // ✅ Default OFF
   const [showMethodSelector, setShowMethodSelector] = useState(false);
   const [offsetInfo, setOffsetInfo] = useState({ offset: 0, description: '', group: '' });
   const [ramadanInfo, setRamadanInfo] = useState({ year: 1447, currentDay: null });
@@ -32,17 +31,50 @@ const RamadanTable = () => {
   const [showCitySearch, setShowCitySearch] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(0);
-  const [selectedDay, setSelectedDay] = useState(null);
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
 
   const methodNames = {
     1: 'University of Islamic Sciences, Karachi',
-    4: 'Umm Al-Qura University, Makkah',
     2: 'Islamic Society of North America (ISNA)',
-    3: 'Muslim World League (MWL)',
-    5: 'Egyptian General Authority of Survey'
+    3: 'Muslim World League',
+    4: 'Umm Al-Qura University, Makkah',
+    5: 'Egyptian General Authority of Survey',
+    8: 'Gulf Region',
+    9: 'Kuwait',
+    10: 'Qatar'
+  };
+
+  const txt = {
+    title: language === 'bn' ? `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি` : `Ramadan ${ramadanInfo.year} - 30 Days Schedule`,
+    subtitle: language === 'bn' ? 'সেহরি ও ইফতার সময়' : 'Sehri & Iftar Times',
+    day: language === 'bn' ? 'রোজা' : 'Day',
+    date: language === 'bn' ? 'তারিখ' : 'Date',
+    hijri: language === 'bn' ? 'হিজরি' : 'Hijri',
+    weekday: language === 'bn' ? 'বার' : 'Day',
+    sehri: language === 'bn' ? 'সেহরি' : 'Sehri',
+    iftar: language === 'bn' ? 'ইফতার' : 'Iftar',
+    fasting: language === 'bn' ? 'সময়' : 'Fasting',
+    today: language === 'bn' ? 'আজ' : 'Today',
+    downloadPDF: language === 'bn' ? 'পিডিএফ ডাউনলোড' : 'Download PDF',
+    location: language === 'bn' ? 'অবস্থান' : 'Location',
+    notes: language === 'bn' ? 'আপনার অবস্থান অনুযায়ী সময়' : 'Times based on your location',
+    sehriNote: language === 'bn' ? 'সেহরির সময় খাওয়া শেষ করুন' : 'Stop eating at Sehri time',
+    iftarNote: language === 'bn' ? 'ইফতারের সময় ইফতার করুন' : 'Break fast at Iftar time',
+    day1to10: language === 'bn' ? 'প্রথম আশরা (রহমত)' : 'First Ashra (Mercy)',
+    day11to20: language === 'bn' ? 'দ্বিতীয় আশরা (মাগফিরাত)' : 'Second Ashra (Forgiveness)',
+    day21to30: language === 'bn' ? 'তৃতীয় আশরা (নাজাত)' : 'Third Ashra (Salvation)',
+    changeCity: language === 'bn' ? 'শহর পরিবর্তন' : 'Change City',
+    searchCity: language === 'bn' ? 'শহর খুঁজুন' : 'Search City',
+    search: language === 'bn' ? 'অনুসন্ধান' : 'Search',
+    close: language === 'bn' ? 'বন্ধ' : 'Close',
+    loading: language === 'bn' ? 'লোড হচ্ছে...' : 'Loading...',
+    calculationMethod: language === 'bn' ? 'পদ্ধতি' : 'Method',
+    offsets: language === 'bn' ? 'স্থানীয় সমন্বয়' : 'Local Offsets',
+    offsetsEnabled: language === 'bn' ? 'চালু' : 'On',
+    offsetsDisabled: language === 'bn' ? 'বন্ধ' : 'Off',
+    noData: language === 'bn' ? 'তথ্য পাওয়া যায়নি' : 'No data available'
   };
 
   useEffect(() => {
@@ -57,13 +89,15 @@ const RamadanTable = () => {
       setLoading(true);
       setLoadingProgress(0);
       
-      const toastId = toast.loading(language === 'bn' ? '📅 রমজান ক্যালেন্ডার তৈরি হচ্ছে...' : '📅 Generating Ramadan calendar...');
+      const toastId = toast.loading(
+        language === 'bn' ? '📅 রমজান ক্যালেন্ডার তৈরি হচ্ছে...' : '📅 Generating Ramadan calendar...'
+      );
       
-      // Get calendar data
-      const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
+      const calendarResponse = await hijriService.getRamadanCalendar(location);
+      const calendarData = calendarResponse.data;
       
       const offset = hijriService.getCountryOffset(location);
-      const description = hijriService.getOffsetDescription(location, useOffsets);
+      const description = hijriService.getOffsetDescription(location);
       const group = offset === 0 ? 'Group 1 (Feb 18 Start)' : 'Group 2 (Feb 19 Start)';
       
       setOffsetInfo({ offset, description, group });
@@ -72,7 +106,6 @@ const RamadanTable = () => {
         currentDay: calendarData.currentDay 
       });
       
-      // Sequential API calls - one by one
       const days = [];
       let todayData = null;
       
@@ -80,9 +113,10 @@ const RamadanTable = () => {
         const day = calendarData.days[i];
         
         setLoadingProgress(Math.round((i + 1) / 30 * 100));
-        toast.loading(language === 'bn' 
-          ? `⏳ দিন ${i + 1}/৩০ লোড হচ্ছে...` 
-          : `⏳ Loading day ${i + 1}/30...`, 
+        toast.loading(
+          language === 'bn' 
+            ? `⏳ দিন ${i + 1}/৩০ লোড হচ্ছে...` 
+            : `⏳ Loading day ${i + 1}/30...`, 
           { id: toastId }
         );
         
@@ -94,20 +128,9 @@ const RamadanTable = () => {
             day.gregorianStr
           );
           
-          let sehriTime = prayerData?.timings?.Fajr || '05:30';
-          let iftarTime = prayerData?.timings?.Maghrib || '18:15';
-          
-          if (location.country === 'Bangladesh' && useOffsets) {
-            const offset = getBangladeshOffset(location.city);
-            const [sehriHour, sehriMin] = sehriTime.split(':').map(Number);
-            const [iftarHour, iftarMin] = iftarTime.split(':').map(Number);
-            
-            const sehriTotal = sehriHour * 60 + sehriMin - offset.sehri;
-            const iftarTotal = iftarHour * 60 + iftarMin + offset.iftar;
-            
-            sehriTime = `${Math.floor(sehriTotal / 60)}:${(sehriTotal % 60).toString().padStart(2, '0')}`;
-            iftarTime = `${Math.floor(iftarTotal / 60)}:${(iftarTotal % 60).toString().padStart(2, '0')}`;
-          }
+          // ✅ Only set if data exists, otherwise leave empty
+          let sehriTime = prayerData?.timings?.Fajr || '';
+          let iftarTime = prayerData?.timings?.Maghrib || '';
           
           const dayData = {
             day: day.day,
@@ -116,11 +139,12 @@ const RamadanTable = () => {
             hijriDate: day.hijri.format,
             weekday: weekdays[day.gregorian.getDay()],
             shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+            // ✅ Show empty if no data
             sehri24: sehriTime,
-            sehri12: convertTo12Hour(sehriTime),
+            sehri12: sehriTime ? convertTo12Hour(sehriTime) : '--:-- --',
             iftar24: iftarTime,
-            iftar12: convertTo12Hour(iftarTime),
-            fastingHours: calculateFastingHours(sehriTime, iftarTime),
+            iftar12: iftarTime ? convertTo12Hour(iftarTime) : '--:-- --',
+            fastingHours: (sehriTime && iftarTime) ? calculateFastingHours(sehriTime, iftarTime) : '--h --m',
             isToday: day.isToday
           };
           
@@ -131,21 +155,43 @@ const RamadanTable = () => {
           days.push(dayData);
         } catch (error) {
           console.error(`Day ${day.day} failed:`, error);
-          toast.error(language === 'bn' 
-            ? `❌ দিন ${day.day} লোড করতে সমস্যা হয়েছে` 
-            : `❌ Failed to load day ${day.day}`
-          );
+          // ✅ Push with empty data instead of dummy data
+          const emptyDay = {
+            day: day.day,
+            gregorianDate: day.gregorian,
+            gregorianStr: day.gregorianStr,
+            hijriDate: day.hijri.format,
+            weekday: weekdays[day.gregorian.getDay()],
+            shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+            sehri24: '',
+            sehri12: '--:-- --',
+            iftar24: '',
+            iftar12: '--:-- --',
+            fastingHours: '--h --m',
+            isToday: day.isToday
+          };
+          
+          if (day.isToday) {
+            todayData = emptyDay;
+          }
+          
+          days.push(emptyDay);
         }
       }
       
       setRamadanDays(days);
       setTodayInfo(todayData);
       
-      toast.success(language === 'bn' ? '✅ ক্যালেন্ডার লোড সম্পন্ন' : '✅ Calendar loaded successfully', { id: toastId });
+      toast.success(
+        language === 'bn' ? '✅ ক্যালেন্ডার লোড সম্পন্ন' : '✅ Calendar loaded successfully', 
+        { id: toastId }
+      );
       
     } catch (error) {
       console.error('Error:', error);
-      toast.error(language === 'bn' ? '❌ ডেটা লোড করতে সমস্যা হয়েছে' : '❌ Failed to load data');
+      toast.error(
+        language === 'bn' ? '❌ ডেটা লোড করতে সমস্যা হয়েছে' : '❌ Failed to load data'
+      );
     } finally {
       setLoading(false);
       setLoadingProgress(100);
@@ -153,23 +199,24 @@ const RamadanTable = () => {
   };
 
   const calculateFastingHours = (sehri, iftar) => {
+    if (!sehri || !iftar) return '--h --m';
+    
     const [sehriHour, sehriMin] = sehri.split(':').map(Number);
     const [iftarHour, iftarMin] = iftar.split(':').map(Number);
     let total = (iftarHour * 60 + iftarMin) - (sehriHour * 60 + sehriMin);
     if (total < 0) total += 24 * 60;
-    return `${Math.floor(total / 60)}h ${total % 60}m`;
+    const hours = Math.floor(total / 60);
+    const minutes = total % 60;
+    return `${hours}h ${minutes}m`;
   };
 
+  // ✅ AM/PM conversion only
   const convertTo12Hour = (time) => {
-    if (!time || time === '--:--') return '--:--';
+    if (!time || time === '--:--') return '--:-- --';
     const [hours, minutes] = time.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const period = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
-    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-  };
-
-  const formatDayMonth = (date) => {
-    return format(date, 'dd MMM', { locale: language === 'bn' ? bn : enUS });
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
 
   const searchCityByName = async () => {
@@ -201,21 +248,27 @@ const RamadanTable = () => {
       city: city.name,
       country: city.country
     });
-    toast.success(language === 'bn' ? `📍 ${city.name} নির্বাচিত হয়েছে` : `📍 ${city.name} selected`);
+    toast.success(
+      language === 'bn' ? `📍 ${city.name} নির্বাচিত হয়েছে` : `📍 ${city.name} selected`
+    );
   };
 
   const exportToPDF = () => {
     try {
-      const loadingToast = toast.loading(language === 'bn' ? '📄 পিডিএফ তৈরি হচ্ছে...' : '📄 Generating PDF...');
+      const loadingToast = toast.loading(
+        language === 'bn' ? '📄 পিডিএফ তৈরি হচ্ছে...' : '📄 Generating PDF...'
+      );
       
       const doc = new jsPDF();
       
-      // Register Bangla font
-      try {
-        doc.addFileToVFS('Nikosh-bold.ttf', fontNikoshBold);
-        doc.addFont('Nikosh-bold.ttf', 'Nikosh', 'bold');
-      } catch (e) {
-        console.warn('Font registration failed');
+      // ✅ Register Bangla font if language is Bengali
+      if (language === 'bn') {
+        try {
+          doc.addFileToVFS('Nikosh-bold.ttf', fontNikoshBold);
+          doc.addFont('Nikosh-bold.ttf', 'Nikosh', 'bold');
+        } catch (e) {
+          console.warn('Font registration failed');
+        }
       }
       
       // Title
@@ -224,15 +277,14 @@ const RamadanTable = () => {
       
       let yPos = 20;
       
+      // ✅ Use Bangla font for Bengali
       if (language === 'bn') {
         doc.setFont('Nikosh', 'bold');
-        doc.text('রমজান', 20, yPos);
-        yPos += 8;
-        doc.text(`${ramadanInfo.year} - ৩০ দিনের সময়সূচি`, 20, yPos);
       } else {
-        doc.setFont('helvetica');
-        doc.text(`Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 20, yPos);
+        doc.setFont('helvetica', 'bold');
       }
+      
+      doc.text(txt.title, 20, yPos);
       
       yPos += 10;
       
@@ -240,43 +292,43 @@ const RamadanTable = () => {
       doc.setFontSize(10);
       doc.setTextColor(100, 100, 100);
       
-      if (selectedLocation) {
-        if (language === 'bn') {
-          doc.setFont('Nikosh', 'bold');
-          doc.text('অবস্থান:', 20, yPos);
-          doc.setFont('helvetica');
-          doc.text(`${selectedLocation.city}, ${selectedLocation.country}`, 45, yPos);
-        } else {
-          doc.setFont('helvetica');
-          doc.text(`Location: ${selectedLocation.city}, ${selectedLocation.country}`, 20, yPos);
-        }
+      if (language === 'bn') {
+        doc.setFont('Nikosh', 'normal');
       } else {
-        doc.setFont('helvetica');
-        doc.text(language === 'bn' ? 'অবস্থান নির্ধারিত নয়' : 'Location not set', 20, yPos);
+        doc.setFont('helvetica', 'normal');
+      }
+      
+      if (selectedLocation) {
+        doc.text(`${txt.location}: ${selectedLocation.city}, ${selectedLocation.country}`, 20, yPos);
       }
       
       yPos += 6;
       
       // Method
-      doc.setFont('helvetica');
       doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 20, yPos);
       yPos += 6;
       
       // Date
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, yPos);
-      yPos += 6;
+      yPos += 10;
       
       // Table headers
-      const headers = language === 'bn' 
-        ? ['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']
-        : ['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting'];
+      const headers = [
+        txt.day,
+        txt.date,
+        txt.hijri,
+        txt.weekday,
+        txt.sehri,
+        txt.iftar,
+        txt.fasting
+      ];
       
       const rows = ramadanDays.map(day => {
         if (language === 'bn') {
           return [
             day.day.toString(),
             format(day.gregorianDate, 'dd MMM', { locale: bn }),
-            day.hijriDate,
+            day.hijriDate.split(' ')[0] + ' ' + day.hijriDate.split(' ')[1],
             banglaWeekdays[day.gregorianDate.getDay()],
             day.sehri12,
             day.iftar12,
@@ -286,7 +338,7 @@ const RamadanTable = () => {
           return [
             day.day.toString(),
             format(day.gregorianDate, 'dd MMM', { locale: enUS }),
-            day.hijriDate,
+            day.hijriDate.split(' ')[0] + ' ' + day.hijriDate.split(' ')[1],
             day.shortWeekday,
             day.sehri12,
             day.iftar12,
@@ -318,80 +370,17 @@ const RamadanTable = () => {
       doc.save(fileName);
       
       toast.dismiss(loadingToast);
-      toast.success(language === 'bn' ? '✅ পিডিএফ ডাউনলোড হয়েছে' : '✅ PDF downloaded successfully');
+      toast.success(
+        language === 'bn' ? '✅ পিডিএফ ডাউনলোড হয়েছে' : '✅ PDF downloaded successfully'
+      );
       
     } catch (error) {
       console.error('PDF error:', error);
-      toast.error(language === 'bn' ? '❌ পিডিএফ তৈরি করতে সমস্যা হয়েছে' : '❌ PDF generation failed');
+      toast.error(
+        language === 'bn' ? '❌ পিডিএফ তৈরি করতে সমস্যা হয়েছে' : '❌ PDF generation failed'
+      );
     }
   };
-
-  const translations = {
-    en: {
-      title: `Ramadan ${ramadanInfo.year} - 30 Days Schedule`,
-      subtitle: 'Sehri & Iftar Times',
-      day: 'Day',
-      date: 'Date',
-      hijri: 'Hijri',
-      gregorian: 'Gregorian',
-      weekday: 'Day',
-      sehri: 'Sehri',
-      iftar: 'Iftar',
-      fasting: 'Fasting',
-      today: 'Today',
-      downloadPDF: 'Download PDF',
-      location: 'Location',
-      notes: 'Times based on your location',
-      sehriNote: 'Stop eating at Sehri time',
-      iftarNote: 'Break fast at Iftar time',
-      day1to10: 'First Ashra (Mercy)',
-      day11to20: 'Second Ashra (Forgiveness)',
-      day21to30: 'Third Ashra (Salvation)',
-      changeCity: 'Change City',
-      searchCity: 'Search City',
-      search: 'Search',
-      close: 'Close',
-      loading: 'Loading...',
-      calculationMethod: 'Method',
-      offsets: 'Local Offsets',
-      offsetsEnabled: 'On',
-      offsetsDisabled: 'Off',
-      popularCities: 'Popular Cities'
-    },
-    bn: {
-      title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
-      subtitle: 'সেহরি ও ইফতার সময়',
-      day: 'রোজা',
-      date: 'তারিখ',
-      hijri: 'হিজরি',
-      gregorian: 'ইংরেজি',
-      weekday: 'বার',
-      sehri: 'সেহরি',
-      iftar: 'ইফতার',
-      fasting: 'সময়',
-      today: 'আজ',
-      downloadPDF: 'পিডিএফ ডাউনলোড',
-      location: 'অবস্থান',
-      notes: 'আপনার অবস্থান অনুযায়ী সময়',
-      sehriNote: 'সেহরির সময় খাওয়া শেষ করুন',
-      iftarNote: 'ইফতারের সময় ইফতার করুন',
-      day1to10: 'প্রথম আশরা (রহমত)',
-      day11to20: 'দ্বিতীয় আশরা (মাগফিরাত)',
-      day21to30: 'তৃতীয় আশরা (নাজাত)',
-      changeCity: 'শহর পরিবর্তন',
-      searchCity: 'শহর খুঁজুন',
-      search: 'অনুসন্ধান',
-      close: 'বন্ধ',
-      loading: 'লোড হচ্ছে...',
-      calculationMethod: 'পদ্ধতি',
-      offsets: 'স্থানীয় সমন্বয়',
-      offsetsEnabled: 'চালু',
-      offsetsDisabled: 'বন্ধ',
-      popularCities: 'জনপ্রিয় শহর'
-    }
-  };
-
-  const txt = translations[language] || translations.en;
 
   if (loading || locationLoading) {
     return (
@@ -438,7 +427,7 @@ const RamadanTable = () => {
               <span className="hidden md:inline">{txt.calculationMethod}</span>
             </button>
             
-            {/* Offset toggle */}
+            {/* Offset toggle - DEFAULT OFF */}
             <button 
               onClick={() => setUseOffsets(!useOffsets)}
               className={`px-3 py-2 rounded-lg transition text-sm ${
@@ -492,8 +481,8 @@ const RamadanTable = () => {
           </div>
         )}
 
-        {/* Today's info */}
-        {todayInfo && (
+        {/* Today's info - Only show if data exists */}
+        {todayInfo && todayInfo.sehri12 !== '--:-- --' && (
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div className="glass p-4 bg-emerald-900/30 rounded-xl text-center">
               <p className="text-sm text-white/50 mb-1">{txt.sehri}</p>
@@ -575,47 +564,60 @@ const RamadanTable = () => {
 
       {/* Ramadan Days List */}
       <div className="space-y-3">
-        {ramadanDays.map((day, index) => (
-          <motion.div
-            key={day.day}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.03 }}
-            className={`glass p-4 rounded-xl ${
-              day.isToday ? 'border-2 border-amber-500 bg-amber-900/20' : ''
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
-                  day.isToday ? 'bg-amber-500 text-[#1a3f54]' : 'bg-white/10 text-amber-400'
-                }`}>
-                  {day.day}
-                </div>
-                <div>
-                  <div className="text-sm text-white/50">
-                    {format(day.gregorianDate, 'dd MMM', { locale: language === 'bn' ? bn : enUS })}
+        {ramadanDays.length > 0 ? (
+          ramadanDays.map((day, index) => (
+            <motion.div
+              key={day.day}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.03 }}
+              className={`glass p-4 rounded-xl ${
+                day.isToday ? 'border-2 border-amber-500 bg-amber-900/20' : ''
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg ${
+                    day.isToday ? 'bg-amber-500 text-[#1a3f54]' : 'bg-white/10 text-amber-400'
+                  }`}>
+                    {day.day}
                   </div>
-                  <div className="text-xs text-white/30">{day.hijriDate}</div>
+                  <div>
+                    <div className="text-sm text-white/50">
+                      {format(day.gregorianDate, 'dd MMM', { locale: language === 'bn' ? bn : enUS })}
+                    </div>
+                    <div className="text-xs text-white/30">{day.hijriDate}</div>
+                  </div>
+                </div>
+                <div className="flex gap-6">
+                  <div className="text-right">
+                    <div className="text-xs text-white/50">{txt.sehri}</div>
+                    <div className={`font-mono font-bold ${day.sehri12 !== '--:-- --' ? 'text-emerald-400' : 'text-white/30'}`}>
+                      {day.sehri12}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-white/50">{txt.iftar}</div>
+                    <div className={`font-mono font-bold ${day.iftar12 !== '--:-- --' ? 'text-orange-400' : 'text-white/30'}`}>
+                      {day.iftar12}
+                    </div>
+                  </div>
+                  <div className="text-right hidden sm:block">
+                    <div className="text-xs text-white/50">{txt.fasting}</div>
+                    <div className={`font-bold ${day.fastingHours !== '--h --m' ? 'text-amber-400' : 'text-white/30'}`}>
+                      {day.fastingHours}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="flex gap-6">
-                <div className="text-right">
-                  <div className="text-xs text-white/50">{txt.sehri}</div>
-                  <div className="font-mono text-emerald-400 font-bold">{day.sehri12}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs text-white/50">{txt.iftar}</div>
-                  <div className="font-mono text-orange-400 font-bold">{day.iftar12}</div>
-                </div>
-                <div className="text-right hidden sm:block">
-                  <div className="text-xs text-white/50">{txt.fasting}</div>
-                  <div className="text-amber-400 font-bold">{day.fastingHours}</div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          ))
+        ) : (
+          <div className="glass p-8 text-center">
+            <i className="fas fa-exclamation-circle text-4xl text-white/30 mb-3"></i>
+            <p className="text-white/50">{txt.noData}</p>
+          </div>
+        )}
       </div>
 
       {/* Ashra Sections */}
@@ -636,9 +638,18 @@ const RamadanTable = () => {
 
       {/* Footer Notes */}
       <div className="glass p-4 text-xs text-white/50 rounded-xl">
-        <p className="flex items-center gap-2"><i className="fas fa-info-circle text-amber-400"></i>{txt.notes}</p>
-        <p className="flex items-center gap-2 mt-1"><i className="fas fa-clock text-emerald-400"></i>{txt.sehriNote}</p>
-        <p className="flex items-center gap-2 mt-1"><i className="fas fa-clock text-orange-400"></i>{txt.iftarNote}</p>
+        <p className="flex items-center gap-2">
+          <i className="fas fa-info-circle text-amber-400"></i>
+          {txt.notes}
+        </p>
+        <p className="flex items-center gap-2 mt-1">
+          <i className="fas fa-clock text-emerald-400"></i>
+          {txt.sehriNote}
+        </p>
+        <p className="flex items-center gap-2 mt-1">
+          <i className="fas fa-clock text-orange-400"></i>
+          {txt.iftarNote}
+        </p>
         {selectedLocation && (
           <p className="flex items-center gap-2 mt-2 text-amber-400/70">
             <i className="fas fa-globe"></i>

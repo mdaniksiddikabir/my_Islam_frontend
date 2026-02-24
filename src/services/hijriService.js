@@ -68,7 +68,7 @@ class HijriService {
       'Afghanistan': 0, 'Tajikistan': 0, 'Kyrgyzstan': 0,
       
       // China (most regions - see exceptions below)
-      'China': 0, // Default for most Chinese cities
+      'China': -1, // Default for most Chinese cities
       
       // =====================================================
       // GROUP 2: February 19 Start (-1 offset)
@@ -136,6 +136,7 @@ class HijriService {
       'Tieling': -1,
       'Chaoyang': -1,
       'Huludao': -1,
+      'Huludao Shi':-1
     };
   }
 

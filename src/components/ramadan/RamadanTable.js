@@ -15,7 +15,7 @@ import RamadanSkeleton from './RamadanSkeleton';
 import LoadingProgress from '../common/LoadingProgress';
 
 // Import Bangla font
-import { fontNikoshBold } from '../../Fonts/Nikosh-bold.js';
+import '../../Fonts/Nikosh-bold.js';
 
 // Beautiful list item component - Only AM/PM format
 const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt, index, onDayClick }) => {
@@ -437,108 +437,113 @@ const RamadanTable = () => {
 
   // PDF Export - Only AM/PM format
   const exportToPDF = async () => {
-    try {
-      const loadingToast = toast.loading(language === 'bn' ? 'পিডিএফ তৈরি হচ্ছে...' : 'Generating PDF...');
-      const doc = new jsPDF();
-      
-      // Load Bangla font
-      doc.addFileToVFS('Nikosh-bold.ttf', fontNikoshBold);
-      doc.addFont('Nikosh-bold.ttf', 'Nikosh', 'bold');
-      doc.setFont('Nikosh', 'bold');
-      
-      // Title
-      doc.setFontSize(18);
-      doc.setTextColor(212, 175, 55);
-      
-      if (language === 'bn') {
-        doc.text(`রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`, 20, 20);
-      } else {
-        doc.text(`Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 20, 20);
-      }
-      
-      // Location
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      
-      const locationText = selectedLocation 
-        ? `${selectedLocation.city}, ${selectedLocation.country}`
-        : 'Location not set';
-      doc.text(locationText, 20, 30);
-      doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 20, 35);
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 40);
-      
-      // Table headers - AM/PM only
-      const headers = language === 'bn' 
-        ? [['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']]
-        : [['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting']];
-      
-      // Table data - AM/PM only
-      const rows = ramadanDays.map(day => {
-        if (language === 'bn') {
-          return [
-            day.day.toString(),
-            format(day.gregorianDate, 'dd MMM', { locale: bn }),
-            day.hijriDate,
-            banglaWeekdays[day.gregorianDate.getDay()],
-            day.sehri12,
-            day.iftar12,
-            day.fastingHours
-          ];
-        } else {
-          return [
-            day.day.toString(),
-            format(day.gregorianDate, 'dd MMM', { locale: enUS }),
-            day.hijriDate,
-            weekdays[day.gregorianDate.getDay()].substring(0, 3),
-            day.sehri12,
-            day.iftar12,
-            day.fastingHours
-          ];
-        }
-      });
-      
-      doc.autoTable({
-        head: headers,
-        body: rows,
-        startY: 45,
-        styles: { 
-          fontSize: 8,
-          font: 'Nikosh',
-          cellPadding: 2
-        },
-        headStyles: { 
-          fillColor: [212, 175, 55], 
-          textColor: [26, 63, 84],
-          fontStyle: 'bold'
-        }
-      });
-      
-      // Footer
-      const finalY = doc.lastAutoTable.finalY + 10;
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      
-      if (language === 'bn') {
-        doc.text('সেহরির সময়ে খাওয়া বন্ধ করুন', 20, finalY);
-        doc.text('ইফতারের সময়ে ইফতার করুন', 20, finalY + 5);
-      } else {
-        doc.text('Stop eating before Sehri time', 20, finalY);
-        doc.text('Break fast at Iftar time', 20, finalY + 5);
-      }
-      
-      const fileName = language === 'bn'
-        ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
-        : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
-      
-      doc.save(fileName);
-      toast.dismiss(loadingToast);
-      toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
-      
-    } catch (error) {
-      console.error('PDF error:', error);
-      toast.error('PDF generation failed');
+  try {
+    const loadingToast = toast.loading(language === 'bn' ? 'পিডিএফ তৈরি হচ্ছে...' : 'Generating PDF...');
+    
+    // Create new PDF document
+    const doc = new jsPDF();
+    
+    // IMPORTANT: The font will auto-register when the module is imported
+    // No need to manually add the font - it's already done
+    
+    // Set the registered font
+    doc.setFont('Nikosh', 'bold');
+    
+    // Title in Bangla
+    doc.setFontSize(18);
+    doc.setTextColor(212, 175, 55);
+    
+    if (language === 'bn') {
+      doc.text(`রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`, 20, 20);
+    } else {
+      doc.text(`Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 20, 20);
     }
-  };
+    
+    // Location
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    
+    const locationText = selectedLocation 
+      ? `${selectedLocation.city}, ${selectedLocation.country}`
+      : 'Location not set';
+    doc.text(locationText, 20, 30);
+    doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 20, 35);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 40);
+    
+    // Table headers
+    const headers = language === 'bn' 
+      ? [['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']]
+      : [['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting']];
+    
+    // Table data
+    const rows = ramadanDays.map(day => {
+      if (language === 'bn') {
+        return [
+          day.day.toString(),
+          format(day.gregorianDate, 'dd MMM', { locale: bn }),
+          day.hijriDate,
+          banglaWeekdays[day.gregorianDate.getDay()],
+          day.sehri12,
+          day.iftar12,
+          day.fastingHours
+        ];
+      } else {
+        return [
+          day.day.toString(),
+          format(day.gregorianDate, 'dd MMM', { locale: enUS }),
+          day.hijriDate,
+          weekdays[day.gregorianDate.getDay()].substring(0, 3),
+          day.sehri12,
+          day.iftar12,
+          day.fastingHours
+        ];
+      }
+    });
+    
+    doc.autoTable({
+      head: headers,
+      body: rows,
+      startY: 45,
+      styles: { 
+        fontSize: 8,
+        font: 'Nikosh', // Use the registered font
+        cellPadding: 2
+      },
+      headStyles: { 
+        fillColor: [212, 175, 55], 
+        textColor: [26, 63, 84],
+        fontStyle: 'bold'
+      }
+    });
+    
+    // Footer
+    const finalY = doc.lastAutoTable.finalY + 10;
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    
+    if (language === 'bn') {
+      doc.text('সেহরির সময়ে খাওয়া বন্ধ করুন', 20, finalY);
+      doc.text('ইফতারের সময়ে ইফতার করুন', 20, finalY + 5);
+    } else {
+      doc.text('Stop eating before Sehri time', 20, finalY);
+      doc.text('Break fast at Iftar time', 20, finalY + 5);
+    }
+    
+    // Save
+    const fileName = language === 'bn'
+      ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
+      : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
+    
+    doc.save(fileName);
+    
+    toast.dismiss(loadingToast);
+    toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
+    
+  } catch (error) {
+    console.error('PDF error:', error);
+    toast.error(language === 'bn' ? 'পিডিএফ তৈরি করতে সমস্যা হয়েছে' : 'PDF generation failed');
+  }
+};
 
   const translations = {
     en: {

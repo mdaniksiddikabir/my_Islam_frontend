@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../../context/LanguageContext';
 import { getPrayerTimes, getCalculationMethods } from '../../services/prayerService';
-import { useLocation } from '../../hooks/useLocations';
+import { useLocation } from '../../hooks/useLocation';
 import hijriService from '../../services/hijriService';
 import citySearchService from '../../services/citySearchService';
 import { format } from 'date-fns';
@@ -14,10 +14,10 @@ import { getBangladeshOffset } from '../../services/bangladeshOffsets';
 import RamadanSkeleton from './RamadanSkeleton';
 import LoadingProgress from '../common/LoadingProgress';
 
-// Import Bangla font
+// Import Bangla font (auto-registers with jsPDF)
 import '../../Fonts/Nikosh-bold.js';
 
-// Beautiful list item component - Only AM/PM format
+// Beautiful list item component
 const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt, index, onDayClick }) => {
   const [expanded, setExpanded] = useState(false);
   
@@ -81,10 +81,10 @@ const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt
           </div>
         </div>
         
-        {/* Times section - Only AM/PM format */}
+        {/* Times section */}
         <div className="flex items-center justify-between sm:justify-end gap-4 sm:gap-6">
           <div className="flex items-center gap-4">
-            {/* Sehri time card - AM/PM only */}
+            {/* Sehri time card */}
             <div className="bg-gradient-to-br from-emerald-900/40 to-emerald-800/20 px-4 py-2 rounded-xl border border-emerald-500/30 min-w-[100px] text-center">
               <div className="text-xs font-light text-emerald-300/60 mb-1">{txt.sehri}</div>
               <div className="font-mono text-emerald-400 font-bold text-base md:text-lg tracking-wider">
@@ -92,7 +92,7 @@ const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt
               </div>
             </div>
             
-            {/* Iftar time card - AM/PM only */}
+            {/* Iftar time card */}
             <div className="bg-gradient-to-br from-orange-900/40 to-orange-800/20 px-4 py-2 rounded-xl border border-orange-500/30 min-w-[100px] text-center">
               <div className="text-xs font-light text-orange-300/60 mb-1">{txt.iftar}</div>
               <div className="font-mono text-orange-400 font-bold text-base md:text-lg tracking-wider">
@@ -118,7 +118,7 @@ const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt
         </div>
       </div>
       
-      {/* Expanded details - Only AM/PM format */}
+      {/* Expanded details */}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -176,7 +176,7 @@ const RamadanListItem = ({ day, isToday, language, weekdays, banglaWeekdays, txt
               {day.isApprox && (
                 <div className="mt-3 text-xs text-white/30 flex items-center gap-2">
                   <i className="fas fa-spinner fa-spin text-amber-400"></i>
-                  <span>Loading accurate times...</span>
+                  <span>{txt.loadingAccurate || 'Loading accurate times...'}</span>
                 </div>
               )}
             </div>
@@ -282,6 +282,8 @@ const RamadanTable = () => {
       setLoading(true);
       setLoadingProgress(0);
       
+      const loadingToast = toast.loading(language === 'bn' ? '📅 রমজান ক্যালেন্ডার তৈরি হচ্ছে...' : '📅 Generating Ramadan calendar...');
+      
       const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
       
       const offset = hijriService.getCountryOffset(location);
@@ -296,7 +298,9 @@ const RamadanTable = () => {
         endDate: calendarData.endDate
       });
       
-      // Create approximate times first - Only AM/PM format stored
+      toast.loading(language === 'bn' ? '⏳ আনুমানিক সময় তৈরি হচ্ছে...' : '⏳ Creating estimated times...', { id: loadingToast });
+      
+      // Create approximate times first
       const approxDays = calendarData.days.map(day => {
         const sehri24 = calculateApproxSehri(day.day);
         const iftar24 = calculateApproxIftar(day.day);
@@ -319,20 +323,26 @@ const RamadanTable = () => {
       setRamadanDays(approxDays);
       setTodayInfo(approxDays.find(d => d.isToday));
       
+      toast.dismiss(loadingToast);
+      toast.info(language === 'bn' ? '⏱️ ক্যালেন্ডার প্রস্তুত! সঠিক সময় লোড হচ্ছে...' : '⏱️ Calendar ready! Loading accurate times...', {
+        duration: 3000
+      });
+      
       // Fetch real times in background
       fetchRealTimes(location, calendarData);
       
     } catch (error) {
       console.error('Error:', error);
-      toast.error('Failed to load data');
+      toast.error(language === 'bn' ? '❌ ডেটা লোড করতে সমস্যা হয়েছে' : '❌ Failed to load data');
     } finally {
       setLoading(false);
     }
   };
 
   const fetchRealTimes = async (location, calendarData) => {
-    const toastId = toast.loading(`Loading accurate times...`);
+    const toastId = toast.loading(language === 'bn' ? '⏳ সঠিক সময় লোড হচ্ছে...' : '⏳ Loading accurate times...');
     let successCount = 0;
+    let failedDays = [];
     
     for (let i = 0; i < calendarData.days.length; i++) {
       const day = calendarData.days[i];
@@ -362,14 +372,73 @@ const RamadanTable = () => {
               isApprox: false
             } : d
           ));
+        } else {
+          failedDays.push(day.day);
         }
       } catch (error) {
-        console.log(`Day ${day.day} failed`);
+        failedDays.push(day.day);
       }
     }
     
-    toast.success(`Loaded ${successCount}/30 days`, { id: toastId });
+    if (successCount === 30) {
+      toast.success(language === 'bn' ? '✅ সব ৩০ দিনের সঠিক সময় লোড হয়েছে!' : '✅ All 30 days loaded successfully!', { id: toastId });
+    } else if (successCount > 0) {
+      toast.success(
+        language === 'bn' 
+          ? `✅ ${successCount}/৩০ দিন লোড হয়েছে। ${failedDays.length} দিন আনুমানিক সময় ব্যবহার করা হবে।` 
+          : `✅ Loaded ${successCount}/30 days. ${failedDays.length} days using estimates.`, 
+        { id: toastId, duration: 5000 }
+      );
+    } else {
+      toast.error(
+        language === 'bn' 
+          ? '❌ সঠিক সময় লোড করতে সমস্যা হয়েছে। আনুমানিক সময় ব্যবহার করা হবে।' 
+          : '❌ Failed to load accurate times. Using estimates.', 
+        { id: toastId }
+      );
+    }
+    
     setLoadingProgress(100);
+  };
+
+  const handleDayClick = (day) => {
+    setSelectedDay(day);
+    
+    if (day.isApprox) {
+      toast.info(
+        language === 'bn' 
+          ? `📅 দিন ${day.day}: আনুমানিক সময় ব্যবহার করা হচ্ছে। সঠিক সময় লোড হচ্ছে...` 
+          : `📅 Day ${day.day}: Using estimated times. Accurate times loading...`, 
+        { duration: 2000, icon: '⏳' }
+      );
+    } else {
+      toast.success(
+        language === 'bn' 
+          ? `📅 দিন ${day.day}: সেহরি ${day.sehri12}, ইফতার ${day.iftar12}` 
+          : `📅 Day ${day.day}: Sehri at ${day.sehri12}, Iftar at ${day.iftar12}`, 
+        { duration: 3000, icon: '🌙' }
+      );
+    }
+  };
+
+  const selectCity = (city) => {
+    setShowCitySearch(false);
+    setSearchCity('');
+    setSearchResults([]);
+    
+    const loadingToast = toast.loading(language === 'bn' ? `📅 ${city.name} এর জন্য ক্যালেন্ডার লোড হচ্ছে...` : `📅 Loading calendar for ${city.name}...`);
+    
+    updateLocation({
+      lat: city.lat,
+      lng: city.lng,
+      city: city.name,
+      country: city.country
+    });
+    
+    setTimeout(() => {
+      toast.dismiss(loadingToast);
+      toast.success(language === 'bn' ? `✓ ${city.name} এর জন্য ক্যালেন্ডার লোড হয়েছে` : `✓ Calendar loaded for ${city.name}`);
+    }, 1000);
   };
 
   // Helper functions
@@ -414,136 +483,135 @@ const RamadanTable = () => {
 
   const searchCityByName = async () => {
     if (!searchCity.trim()) {
-      toast.error('Please enter a city name');
+      toast.error(language === 'bn' ? 'শহরের নাম লিখুন' : 'Please enter a city name');
       return;
     }
     setSearching(true);
     try {
       const results = await citySearchService.searchCities(searchCity);
       setSearchResults(results);
-      if (results.length === 0) toast.error('No cities found');
+      if (results.length === 0) {
+        toast.error(language === 'bn' ? 'কোনো শহর পাওয়া যায়নি' : 'No cities found');
+      }
     } catch (error) {
-      toast.error('Search failed');
+      toast.error(language === 'bn' ? 'অনুসন্ধান ব্যর্থ হয়েছে' : 'Search failed');
     } finally {
       setSearching(false);
     }
   };
 
-  const selectCity = (city) => {
-    setShowCitySearch(false);
-    updateLocation({ lat: city.lat, lng: city.lng, city: city.name, country: city.country });
-    toast.success(`Location updated to ${city.name}`);
-  };
-
-  // PDF Export - Only AM/PM format
+  // PDF Export - Bilingual Support
   const exportToPDF = async () => {
-  try {
-    const loadingToast = toast.loading(language === 'bn' ? 'পিডিএফ তৈরি হচ্ছে...' : 'Generating PDF...');
-    
-    // Create new PDF document
-    const doc = new jsPDF();
-    
-    // IMPORTANT: The font will auto-register when the module is imported
-    // No need to manually add the font - it's already done
-    
-    // Set the registered font
-    doc.setFont('Nikosh', 'bold');
-    
-    // Title in Bangla
-    doc.setFontSize(18);
-    doc.setTextColor(212, 175, 55);
-    
-    if (language === 'bn') {
-      doc.text(`রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`, 20, 20);
-    } else {
-      doc.text(`Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 20, 20);
-    }
-    
-    // Location
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    
-    const locationText = selectedLocation 
-      ? `${selectedLocation.city}, ${selectedLocation.country}`
-      : 'Location not set';
-    doc.text(locationText, 20, 30);
-    doc.text(`Method: ${methodNames[selectedMethod] || 'Karachi'}`, 20, 35);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 20, 40);
-    
-    // Table headers
-    const headers = language === 'bn' 
-      ? [['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']]
-      : [['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting']];
-    
-    // Table data
-    const rows = ramadanDays.map(day => {
+    try {
+      const loadingToast = toast.loading(language === 'bn' ? '📄 পিডিএফ তৈরি হচ্ছে...' : '📄 Generating PDF...');
+      
+      const doc = new jsPDF();
+      
+      // Try to use Bangla font for PDF if language is Bangla
+      try {
+        // Import font (auto-registers)
+        await import('../../Fonts/Nikosh-bold.js');
+        doc.setFont('Nikosh', 'bold');
+      } catch (fontError) {
+        console.warn('Bangla font not available, using default');
+        doc.setFont('helvetica');
+      }
+      
+      // Title - Bilingual
+      doc.setFontSize(18);
+      doc.setTextColor(212, 175, 55);
+      
       if (language === 'bn') {
-        return [
-          day.day.toString(),
-          format(day.gregorianDate, 'dd MMM', { locale: bn }),
-          day.hijriDate,
-          banglaWeekdays[day.gregorianDate.getDay()],
-          day.sehri12,
-          day.iftar12,
-          day.fastingHours
-        ];
+        doc.text(`রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`, 20, 20);
       } else {
-        return [
-          day.day.toString(),
-          format(day.gregorianDate, 'dd MMM', { locale: enUS }),
-          day.hijriDate,
-          weekdays[day.gregorianDate.getDay()].substring(0, 3),
-          day.sehri12,
-          day.iftar12,
-          day.fastingHours
-        ];
+        doc.text(`Ramadan ${ramadanInfo.year} - 30 Days Schedule`, 20, 20);
       }
-    });
-    
-    doc.autoTable({
-      head: headers,
-      body: rows,
-      startY: 45,
-      styles: { 
-        fontSize: 8,
-        font: 'Nikosh', // Use the registered font
-        cellPadding: 2
-      },
-      headStyles: { 
-        fillColor: [212, 175, 55], 
-        textColor: [26, 63, 84],
-        fontStyle: 'bold'
+      
+      // Location
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      
+      const locationText = selectedLocation 
+        ? `${selectedLocation.city}, ${selectedLocation.country}`
+        : (language === 'bn' ? 'অবস্থান নির্ধারিত নয়' : 'Location not set');
+      doc.text(locationText, 20, 30);
+      doc.text(`${language === 'bn' ? 'পদ্ধতি' : 'Method'}: ${methodNames[selectedMethod] || 'Karachi'}`, 20, 35);
+      doc.text(`${language === 'bn' ? 'তৈরির তারিখ' : 'Generated'}: ${new Date().toLocaleDateString()}`, 20, 40);
+      
+      // Table headers - Bilingual
+      const headers = language === 'bn' 
+        ? [['রোজা', 'তারিখ', 'হিজরি', 'বার', 'সেহরি', 'ইফতার', 'সময়']]
+        : [['Day', 'Date', 'Hijri', 'Day', 'Sehri', 'Iftar', 'Fasting']];
+      
+      // Table data - Bilingual
+      const rows = ramadanDays.map(day => {
+        if (language === 'bn') {
+          return [
+            day.day.toString(),
+            format(day.gregorianDate, 'dd MMM', { locale: bn }),
+            day.hijriDate,
+            banglaWeekdays[day.gregorianDate.getDay()],
+            day.sehri12,
+            day.iftar12,
+            day.fastingHours
+          ];
+        } else {
+          return [
+            day.day.toString(),
+            format(day.gregorianDate, 'dd MMM', { locale: enUS }),
+            day.hijriDate,
+            weekdays[day.gregorianDate.getDay()].substring(0, 3),
+            day.sehri12,
+            day.iftar12,
+            day.fastingHours
+          ];
+        }
+      });
+      
+      doc.autoTable({
+        head: headers,
+        body: rows,
+        startY: 45,
+        styles: { 
+          fontSize: 8,
+          font: language === 'bn' ? 'Nikosh' : 'helvetica',
+          cellPadding: 2
+        },
+        headStyles: { 
+          fillColor: [212, 175, 55], 
+          textColor: [26, 63, 84],
+          fontStyle: 'bold'
+        }
+      });
+      
+      // Footer - Bilingual
+      const finalY = doc.lastAutoTable.finalY + 10;
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      
+      if (language === 'bn') {
+        doc.text('সেহরির সময়ে খাওয়া বন্ধ করুন', 20, finalY);
+        doc.text('ইফতারের সময়ে ইফতার করুন', 20, finalY + 5);
+      } else {
+        doc.text('Stop eating before Sehri time', 20, finalY);
+        doc.text('Break fast at Iftar time', 20, finalY + 5);
       }
-    });
-    
-    // Footer
-    const finalY = doc.lastAutoTable.finalY + 10;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    
-    if (language === 'bn') {
-      doc.text('সেহরির সময়ে খাওয়া বন্ধ করুন', 20, finalY);
-      doc.text('ইফতারের সময়ে ইফতার করুন', 20, finalY + 5);
-    } else {
-      doc.text('Stop eating before Sehri time', 20, finalY);
-      doc.text('Break fast at Iftar time', 20, finalY + 5);
+      
+      // Save with bilingual filename
+      const fileName = language === 'bn'
+        ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
+        : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
+      
+      doc.save(fileName);
+      
+      toast.dismiss(loadingToast);
+      toast.success(language === 'bn' ? '✅ পিডিএফ ডাউনলোড হয়েছে' : '✅ PDF downloaded successfully');
+      
+    } catch (error) {
+      console.error('PDF error:', error);
+      toast.error(language === 'bn' ? '❌ পিডিএফ তৈরি করতে সমস্যা হয়েছে' : '❌ PDF generation failed');
     }
-    
-    // Save
-    const fileName = language === 'bn'
-      ? `রমজান-${ramadanInfo.year}-${selectedLocation?.city || 'সময়সূচি'}.pdf`
-      : `Ramadan-${ramadanInfo.year}-${selectedLocation?.city || 'Schedule'}.pdf`;
-    
-    doc.save(fileName);
-    
-    toast.dismiss(loadingToast);
-    toast.success(language === 'bn' ? 'পিডিএফ ডাউনলোড হয়েছে' : 'PDF downloaded successfully');
-    
-  } catch (error) {
-    console.error('PDF error:', error);
-    toast.error(language === 'bn' ? 'পিডিএফ তৈরি করতে সমস্যা হয়েছে' : 'PDF generation failed');
-  }
-};
+  };
 
   const translations = {
     en: {
@@ -582,7 +650,8 @@ const RamadanTable = () => {
       popularCities: 'Popular Cities',
       todaysSchedule: 'Today\'s Schedule',
       sehriTime: 'Sehri',
-      iftarTime: 'Iftar'
+      iftarTime: 'Iftar',
+      loadingAccurate: 'Loading accurate times...'
     },
     bn: {
       title: `রমজান ${ramadanInfo.year} - ৩০ দিনের সময়সূচি`,
@@ -620,11 +689,67 @@ const RamadanTable = () => {
       popularCities: 'জনপ্রিয় শহর',
       todaysSchedule: 'আজকের সময়সূচি',
       sehriTime: 'সেহরি',
-      iftarTime: 'ইফতার'
+      iftarTime: 'ইফতার',
+      loadingAccurate: 'সঠিক সময় লোড হচ্ছে...'
     }
   };
 
   const txt = translations[language] || translations.en;
+
+  // City search modal component
+  const CitySearchModal = () => (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="glass max-w-md w-full p-6 rounded-xl max-h-[80vh] overflow-y-auto">
+        <h3 className="text-xl font-bold mb-4 text-amber-400">{txt.searchCity}</h3>
+        <div className="flex gap-2 mb-4">
+          <input 
+            type="text" 
+            value={searchCity} 
+            onChange={(e) => setSearchCity(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && searchCityByName()}
+            placeholder={txt.searchCity} 
+            className="flex-1 p-3 bg-white/5 border border-white/10 rounded-lg focus:border-amber-400 text-white"
+            disabled={searching} 
+            autoFocus 
+          />
+          <button 
+            onClick={searchCityByName} 
+            disabled={searching}
+            className="px-6 py-2 bg-amber-500 text-[#1a3f54] rounded-lg hover:bg-amber-400 transition disabled:opacity-50"
+          >
+            {searching ? <i className="fas fa-spinner fa-spin"></i> : txt.search}
+          </button>
+        </div>
+        
+        {searchResults.length > 0 ? (
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {searchResults.map((city, i) => (
+              <button 
+                key={i} 
+                onClick={() => selectCity(city)}
+                className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition"
+              >
+                <div className="font-bold">{city.name}</div>
+                <div className="text-sm text-white/50">{city.country}</div>
+              </button>
+            ))}
+          </div>
+        ) : searchCity && !searching && (
+          <div className="p-4 bg-yellow-900/30 rounded-lg text-center text-yellow-500">
+            <i className="fas fa-exclamation-triangle mr-2"></i>
+            {language === 'bn' ? 'কোনো শহর পাওয়া যায়নি' : 'No cities found'}
+          </div>
+        )}
+        
+        <button 
+          onClick={() => setShowCitySearch(false)} 
+          className="mt-4 text-sm text-white/50 hover:text-white w-full"
+        >
+          {txt.close}
+        </button>
+      </div>
+    </div>
+  );
 
   if (loading || locationLoading) {
     return (
@@ -649,15 +774,23 @@ const RamadanTable = () => {
           
           <div className="flex flex-wrap items-center gap-2">
             {/* Method selector */}
-            <button onClick={() => setShowMethodSelector(!showMethodSelector)} 
-              className="glass px-3 py-2 text-amber-400 hover:bg-white/10 transition rounded-lg text-sm">
+            <button 
+              onClick={() => setShowMethodSelector(!showMethodSelector)} 
+              className="glass px-3 py-2 text-amber-400 hover:bg-white/10 transition rounded-lg text-sm"
+              title={txt.changeMethod}
+            >
               <i className="fas fa-calculator mr-2"></i>
               <span className="hidden md:inline">{txt.calculationMethod}</span>
             </button>
             
             {/* Offset toggle */}
-            <button onClick={() => setUseOffsets(!useOffsets)}
-              className={`px-3 py-2 rounded-lg transition text-sm ${useOffsets ? 'bg-emerald-600 text-white' : 'bg-gray-600 text-white/70'}`}>
+            <button 
+              onClick={() => setUseOffsets(!useOffsets)}
+              className={`px-3 py-2 rounded-lg transition text-sm ${
+                useOffsets ? 'bg-emerald-600 text-white' : 'bg-gray-600 text-white/70'
+              }`}
+              title={txt.enableOffsets || 'Toggle offsets'}
+            >
               <i className="fas fa-map-pin mr-2"></i>
               {useOffsets ? txt.offsetsEnabled : txt.offsetsDisabled}
             </button>
@@ -667,18 +800,44 @@ const RamadanTable = () => {
               <div className="glass px-3 py-2 flex items-center gap-2">
                 <i className="fas fa-map-marker-alt text-amber-400"></i>
                 <span className="text-sm font-medium max-w-[100px] truncate">{selectedLocation.city}</span>
-                <button onClick={() => setShowCitySearch(true)} className="text-xs bg-amber-500/20 px-2 py-1 rounded">
+                <button 
+                  onClick={() => setShowCitySearch(true)} 
+                  className="text-xs bg-amber-500/20 px-2 py-1 rounded hover:bg-amber-500/30 transition"
+                  title={txt.changeCity}
+                >
                   <i className="fas fa-search"></i>
                 </button>
               </div>
             ) : (
-              <button onClick={() => setShowCitySearch(true)} className="glass px-3 py-2 text-amber-400">
+              <button 
+                onClick={() => setShowCitySearch(true)} 
+                className="glass px-3 py-2 text-amber-400 hover:bg-white/10 transition rounded-lg"
+              >
                 <i className="fas fa-search mr-2"></i>
                 <span className="hidden md:inline">{txt.searchCity}</span>
               </button>
             )}
           </div>
         </div>
+
+        {/* Method selector dropdown */}
+        {showMethodSelector && (
+          <div className="mt-4 glass p-4 rounded-xl">
+            <h3 className="font-bold text-amber-400 mb-3">{txt.calculationMethod}</h3>
+            <select 
+              value={selectedMethod} 
+              onChange={(e) => {
+                setSelectedMethod(parseInt(e.target.value));
+                setShowMethodSelector(false);
+              }} 
+              className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-amber-400 text-white"
+            >
+              {Object.entries(methodNames).map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Countdown */}
         {todayInfo && (
@@ -713,24 +872,12 @@ const RamadanTable = () => {
           </div>
         )}
 
-        {/* Method selector dropdown */}
-        {showMethodSelector && (
-          <div className="mt-4 glass p-4 rounded-xl">
-            <h3 className="font-bold text-amber-400 mb-3">{txt.calculationMethod}</h3>
-            <select value={selectedMethod} onChange={(e) => {
-              setSelectedMethod(parseInt(e.target.value));
-              setShowMethodSelector(false);
-            }} className="w-full p-3 bg-white/5 border border-white/10 rounded-lg focus:border-amber-400">
-              {Object.entries(methodNames).map(([id, name]) => (
-                <option key={id} value={id}>{name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-
         {/* PDF Export */}
         <div className="flex justify-end mt-4">
-          <button onClick={exportToPDF} className="px-4 py-2 bg-amber-500 text-[#1a3f54] rounded-lg hover:bg-amber-400 transition font-bold flex items-center gap-2">
+          <button 
+            onClick={exportToPDF} 
+            className="px-4 py-2 bg-amber-500 text-[#1a3f54] rounded-lg hover:bg-amber-400 transition font-bold flex items-center gap-2"
+          >
             <i className="fas fa-file-pdf"></i>
             <span>{txt.downloadPDF}</span>
           </button>
@@ -738,45 +885,9 @@ const RamadanTable = () => {
       </div>
 
       {/* City Search Modal */}
-      {showCitySearch && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="glass max-w-md w-full p-6 rounded-xl max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold mb-4 text-amber-400">{txt.searchCity}</h3>
-            <div className="flex gap-2 mb-4">
-              <input type="text" value={searchCity} onChange={(e) => setSearchCity(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && searchCityByName()}
-                placeholder={txt.searchCity} className="flex-1 p-3 bg-white/5 border border-white/10 rounded-lg focus:border-amber-400"
-                disabled={searching} autoFocus />
-              <button onClick={searchCityByName} disabled={searching}
-                className="px-6 py-2 bg-amber-500 text-[#1a3f54] rounded-lg hover:bg-amber-400 transition disabled:opacity-50">
-                {searching ? <i className="fas fa-spinner fa-spin"></i> : txt.search}
-              </button>
-            </div>
-            
-            {searchResults.length > 0 ? (
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {searchResults.map((city, i) => (
-                  <button key={i} onClick={() => selectCity(city)}
-                    className="w-full text-left p-3 bg-white/5 hover:bg-white/10 rounded-lg transition">
-                    <div className="font-bold">{city.name}</div>
-                    <div className="text-sm text-white/50">{city.country}</div>
-                  </button>
-                ))}
-              </div>
-            ) : searchCity && !searching && (
-              <div className="p-4 bg-yellow-900/30 rounded-lg text-center text-yellow-500">
-                <i className="fas fa-exclamation-triangle mr-2"></i>No cities found
-              </div>
-            )}
-            
-            <button onClick={() => setShowCitySearch(false)} className="mt-4 text-sm text-white/50 hover:text-white w-full">
-              {txt.close}
-            </button>
-          </div>
-        </div>
-      )}
+      {showCitySearch && <CitySearchModal />}
 
-      {/* Beautiful List of Ramadan Days - Only AM/PM format */}
+      {/* Beautiful List of Ramadan Days */}
       <div className="space-y-2">
         {ramadanDays.map((day, index) => (
           <RamadanListItem
@@ -788,9 +899,25 @@ const RamadanTable = () => {
             banglaWeekdays={banglaWeekdays}
             txt={txt}
             index={index}
-            onDayClick={setSelectedDay}
+            onDayClick={handleDayClick}
           />
         ))}
+      </div>
+
+      {/* Ashra Sections */}
+      <div className="grid grid-cols-3 gap-2 mt-4">
+        <div className="bg-emerald-900/40 p-2 md:p-3 rounded-lg text-center">
+          <p className="text-xs text-white/50">1-10</p>
+          <p className="text-xs md:text-sm font-bold text-emerald-400">{txt.day1to10}</p>
+        </div>
+        <div className="bg-amber-900/40 p-2 md:p-3 rounded-lg text-center">
+          <p className="text-xs text-white/50">11-20</p>
+          <p className="text-xs md:text-sm font-bold text-amber-400">{txt.day11to20}</p>
+        </div>
+        <div className="bg-red-900/40 p-2 md:p-3 rounded-lg text-center">
+          <p className="text-xs text-white/50">21-30</p>
+          <p className="text-xs md:text-sm font-bold text-red-400">{txt.day21to30}</p>
+        </div>
       </div>
 
       {/* Footer Notes */}

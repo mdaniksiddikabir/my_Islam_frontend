@@ -5,7 +5,7 @@ import { Toaster } from 'react-hot-toast';
 import { LanguageProvider } from './context/LanguageContext';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext'; // This uses Auth
+import { SettingsProvider } from './context/SettingsProvider'; // Fixed import
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -23,6 +23,8 @@ import ForgotPassword from './components/user/ForgotPassword';
 import ResetPassword from './components/user/ResetPassword';
 import RamadanPage from './pages/RamadanPage';
 
+// ✅ IMPORT DASHBOARD
+import Dashboard from './components/user/Dashboard';
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -44,13 +46,9 @@ function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        {/* LanguageProvider first - independent */}
         <LanguageProvider>
-          {/* AuthProvider second - needed by SettingsProvider */}
           <AuthProvider>
-            {/* ThemeProvider third - independent but can be anywhere */}
             <ThemeProvider>
-              {/* SettingsProvider fourth - depends on AuthProvider */}
               <SettingsProvider>
                 <Router>
                   <div className="min-h-screen bg-gradient-to-br from-[#0a2a3b] to-[#1a3f54] text-white">
@@ -65,14 +63,22 @@ function App() {
                         <Route path="/reset-password/:token" element={<ResetPassword />} />
                         <Route path="/prayer" element={<PrayerPage />} />
                         <Route path="/qibla" element={<QiblaPage />} />
-                        <Route path="/quran" element={<QuranPage />} />                        
-                        // Add route: For Ramadan calendar 
+                        <Route path="/quran" element={<QuranPage />} />
                         <Route path="/ramadan" element={<RamadanPage />} />
                         <Route path="/calendar" element={<CalendarPage />} />
                         <Route path="/duas" element={<DuaPage />} />
                         <Route path="/settings" element={<SettingsPage />} />
                         
-                        {/* Protected Route */}
+                        {/* ✅ PROTECTED ROUTES */}
+                        <Route 
+                          path="/dashboard" 
+                          element={
+                            <ProtectedRoute>
+                              <Dashboard />
+                            </ProtectedRoute>
+                          } 
+                        />
+                        
                         <Route 
                           path="/profile" 
                           element={

@@ -219,81 +219,80 @@ const RamadanTable = () => {
 
   // MAIN FUNCTION - Load Ramadan data with PROPER dates
   const loadRamadanData = async (location) => {
-    try {
-      setLoading(true);
-      setLoadingProgress(0);
-      
-      // Try cache first
-      if (loadFromCache()) {
-        setLoading(false);
-        return;
-      }
-      
-      // Get calendar with correct dates
-      const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
-      
-      // DEBUG: Verify dates are different
-      console.log('📅 VERIFYING DATES:');
-      calendarData.days.slice(0, 5).forEach(day => {
-        console.log(`Day ${day.day}: ${day.gregorianStr}`);
-      });
-      
-      const offset = hijriService.getCountryOffset(location);
-      const description = hijriService.getOffsetDescription(location, useOffsets);
-      const group = offset === 0 ? 'Group 1 (Feb 18 Start)' : 'Group 2 (Feb 19 Start)';
-      
-      setOffsetInfo({ offset, description, group });
-      
-      setRamadanInfo({
-        year: calendarData.year,
-        currentDay: calendarData.currentDay,
-        startDate: calendarData.startDate,
-        endDate: calendarData.endDate
-      });
-      
-      // Create placeholder days (instant display)
-      const placeholderDays = calendarData.days.map(day => ({
-        day: day.day,
-        gregorianDate: day.gregorian,
-        gregorianStr: day.gregorianStr,
-        hijriDate: day.hijri.format,
-        weekday: weekdays[day.gregorian.getDay()],
-        shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
-        sehri24: '--:--',
-        sehri12: '--:--',
-        iftar24: '--:--',
-        iftar12: '--:--',
-        fastingHours: '--:--',
-        isToday: day.isToday,
-        isLoading: true
-      }));
-      
-      setRamadanDays(placeholderDays);
-      
-      // Fetch ALL 30 days in PARALLEL (fast!)
-      const toastId = toast.loading(`Fetching prayer times for 30 days...`);
-      
-      // Create array of promises - one for each day with its OWN date
-      const fetchPromises = calendarData.days.map(async (day) => {
-        try {
-          console.log(`🌙 Fetching Day ${day.day} (${day.gregorianStr})`);
-          
-          const prayerData = await getPrayerTimes(
-            location.lat,
-            location.lng,
-            selectedMethod,
-            day.gregorianStr // CRITICAL: Each day has different date!
-          );
-          
-          let sehriTime = prayerData?.timings?.Fajr || '05:30';
-          let iftarTime = prayerData?.timings?.Maghrib || '18:15';
-          
-          // Apply Bangladesh offsets if needed
-          if (location.country === 'Bangladesh' && useOffsets) {
-            const adjusted = applyBangladeshOffset(sehriTime, iftarTime, location.city);
-            sehriTime = adjusted.sehri;
-            iftarTime = adjusted.iftar;
-          }
+  try {
+    setLoading(true);
+    setLoadingProgress(0);
+    
+    // Try cache first
+    if (loadFromCache()) {
+      setLoading(false);
+      return;
+    }
+    
+    console.log('📍 Loading data for:', location);
+    
+    // Get calendar with PROPER dates
+    const calendarData = await hijriService.getRamadanCalendar(location, useOffsets);
+    
+    // DEBUG: Log all dates
+    console.log('📅 VERIFYING DATES:');
+    calendarData.days.slice(0, 5).forEach(day => {
+      console.log(`Day ${day.day}: ${day.gregorianStr}`);
+    });
+    
+    const offset = hijriService.getCountryOffset(location);
+    const description = hijriService.getOffsetDescription(location, useOffsets);
+    const group = offset === 0 ? 'Group 1 (Feb 18 Start)' : 'Group 2 (Feb 19 Start)';
+    
+    setOffsetInfo({ offset, description, group });
+    
+    setRamadanInfo({
+      year: calendarData.year,
+      currentDay: calendarData.currentDay,
+      startDate: calendarData.startDate,
+      endDate: calendarData.endDate
+    });
+    
+    // Create placeholder days with DEFAULT TIMES (not --:--)
+    // This ensures users see SOMETHING while waiting
+    const placeholderDays = calendarData.days.map(day => ({
+      day: day.day,
+      gregorianDate: day.gregorian,
+      gregorianStr: day.gregorianStr,
+      hijriDate: day.hijri.format,
+      weekday: weekdays[day.gregorian.getDay()],
+      shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+      // Use approximate default times based on day number
+      sehri24: calculateApproximateSehri(day.day),
+      sehri12: convertTo12Hour(calculateApproximateSehri(day.day)),
+      iftar24: calculateApproximateIftar(day.day),
+      iftar12: convertTo12Hour(calculateApproximateIftar(day.day)),
+      fastingHours: calculateApproximateFasting(day.day),
+      isToday: day.isToday,
+      isLoading: true
+    }));
+    
+    setRamadanDays(placeholderDays);
+    
+    // Show loading toast
+    const toastId = toast.loading(`Fetching accurate prayer times...`);
+    
+    // Fetch ALL 30 days in PARALLEL
+    const fetchPromises = calendarData.days.map(async (day) => {
+      try {
+        console.log(`🌙 Fetching Day ${day.day} (${day.gregorianStr})`);
+        
+        const prayerData = await getPrayerTimes(
+          location.lat,
+          location.lng,
+          selectedMethod,
+          day.gregorianStr
+        );
+        
+        // If we got data, use it
+        if (prayerData && prayerData.timings) {
+          const sehriTime = prayerData.timings.Fajr || calculateApproximateSehri(day.day);
+          const iftarTime = prayerData.timings.Maghrib || calculateApproximateIftar(day.day);
           
           return {
             day: day.day,
@@ -301,74 +300,120 @@ const RamadanTable = () => {
             iftar24: iftarTime,
             success: true
           };
-        } catch (error) {
-          console.error(`Failed for day ${day.day}:`, error);
+        } else {
+          // API call succeeded but no data
           return {
             day: day.day,
-            sehri24: '05:30',
-            iftar24: '18:15',
+            sehri24: calculateApproximateSehri(day.day),
+            iftar24: calculateApproximateIftar(day.day),
             success: false
           };
         }
-      });
-      
-      // Wait for ALL promises to resolve (parallel = fast!)
-      const results = await Promise.all(fetchPromises);
-      
-      // Update progress
-      setLoadingProgress(100);
-      
-      // Update days with real times
-      const updatedDays = calendarData.days.map((day, index) => {
-        const result = results.find(r => r.day === day.day) || results[index];
-        
+      } catch (error) {
+        console.error(`❌ Failed for day ${day.day}:`, error);
+        // Return approximate times on error
         return {
           day: day.day,
-          gregorianDate: day.gregorian,
-          gregorianStr: day.gregorianStr,
-          hijriDate: day.hijri.format,
-          weekday: weekdays[day.gregorian.getDay()],
-          shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
-          sehri24: result.sehri24,
-          sehri12: convertTo12Hour(result.sehri24),
-          iftar24: result.iftar24,
-          iftar12: convertTo12Hour(result.iftar24),
-          isToday: day.isToday,
-          fastingHours: calculateFastingHours(result.sehri24, result.iftar24),
-          isLoading: false
+          sehri24: calculateApproximateSehri(day.day),
+          iftar24: calculateApproximateIftar(day.day),
+          success: false
         };
-      });
+      }
+    });
+    
+    // Wait for all promises to resolve
+    const results = await Promise.all(fetchPromises);
+    
+    // Count successes
+    const successCount = results.filter(r => r.success).length;
+    console.log(`✅ Fetched ${successCount}/${results.length} days successfully`);
+    
+    // Update days with real times
+    const updatedDays = calendarData.days.map((day) => {
+      const result = results.find(r => r.day === day.day);
       
-      setRamadanDays(updatedDays);
-      
-      // Find today's data
-      const todayData = updatedDays.find(d => d.isToday);
-      setTodayInfo(todayData);
-      
-      toast.success(`Loaded times for ${updatedDays.length} days`, { id: toastId });
-      
-      // Save to cache
-      saveToCache({
-        days: updatedDays,
-        todayInfo: todayData,
-        ramadanInfo: {
-          year: calendarData.year,
-          currentDay: calendarData.currentDay,
-          startDate: calendarData.startDate,
-          endDate: calendarData.endDate
-        },
-        offsetInfo: { offset, description, group }
-      });
-      
-    } catch (error) {
-      console.error('Error loading Ramadan data:', error);
-      toast.error('Failed to load Ramadan schedule');
-    } finally {
-      setLoading(false);
-      setLoadingProgress(0);
+      return {
+        day: day.day,
+        gregorianDate: day.gregorian,
+        gregorianStr: day.gregorianStr,
+        hijriDate: day.hijri.format,
+        weekday: weekdays[day.gregorian.getDay()],
+        shortWeekday: weekdays[day.gregorian.getDay()].substring(0, 3),
+        sehri24: result?.sehri24 || calculateApproximateSehri(day.day),
+        sehri12: convertTo12Hour(result?.sehri24 || calculateApproximateSehri(day.day)),
+        iftar24: result?.iftar24 || calculateApproximateIftar(day.day),
+        iftar12: convertTo12Hour(result?.iftar24 || calculateApproximateIftar(day.day)),
+        isToday: day.isToday,
+        fastingHours: calculateFastingHours(
+          result?.sehri24 || calculateApproximateSehri(day.day),
+          result?.iftar24 || calculateApproximateIftar(day.day)
+        ),
+        isLoading: false
+      };
+    });
+    
+    setRamadanDays(updatedDays);
+    
+    // Find today's data
+    const todayData = updatedDays.find(d => d.isToday);
+    setTodayInfo(todayData);
+    
+    // Update toast
+    if (successCount === 30) {
+      toast.success(`All prayer times loaded!`, { id: toastId });
+    } else {
+      toast.success(`Loaded ${successCount}/30 days. Using estimates for others.`, { id: toastId });
     }
-  };
+    
+    // Save to cache
+    saveToCache({
+      days: updatedDays,
+      todayInfo: todayData,
+      ramadanInfo: {
+        year: calendarData.year,
+        currentDay: calendarData.currentDay,
+        startDate: calendarData.startDate,
+        endDate: calendarData.endDate
+      },
+      offsetInfo: { offset, description, group }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error loading Ramadan data:', error);
+    toast.error('Failed to load some prayer times');
+  } finally {
+    setLoading(false);
+    setLoadingProgress(0);
+  }
+};
 
+// Helper functions for approximate times (based on day of Ramadan)
+const calculateApproximateSehri = (day) => {
+  // Sehri gets earlier as Ramadan progresses
+  const baseHour = 5;
+  const baseMinute = 15;
+  const totalMinutes = (baseHour * 60 + baseMinute) - (day * 2);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
+const calculateApproximateIftar = (day) => {
+  // Iftar gets later as Ramadan progresses
+  const baseHour = 18;
+  const baseMinute = 0;
+  const totalMinutes = (baseHour * 60 + baseMinute) + (day * 1);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+};
+
+const calculateApproximateFasting = (day) => {
+  const sehri = calculateApproximateSehri(day);
+  const iftar = calculateApproximateIftar(day);
+  return calculateFastingHours(sehri, iftar);
+};
+          
   const calculateFastingHours = (sehri, iftar) => {
     if (!sehri || sehri === '--:--' || !iftar || iftar === '--:--') return '--:--';
     

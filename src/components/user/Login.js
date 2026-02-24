@@ -29,6 +29,11 @@ const Login = () => {
     }
   }, []);
 
+  // Email validation function
+  const isValidEmail = (email) => {
+    return /\S+@\S+\.\S+/.test(email);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -38,8 +43,13 @@ const Login = () => {
       return;
     }
 
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      toast.error('Please enter a valid email');
+    if (!isValidEmail(email)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
@@ -47,39 +57,54 @@ const Login = () => {
       setLoading(true);
       
       // Pass rememberMe to login service (for backend token expiration)
-      const responseData = await loginService(email, password, rememberMe);
+      const response = await loginService(email, password);
       
-      // Handle Remember Me for frontend
-      if (rememberMe) {
-        // Save email for 30 days
-        localStorage.setItem('savedEmail', email);
-        localStorage.setItem('rememberMe', 'true');
+      // Check if login was successful
+      if (response?.success && response?.data?.user) {
+        
+        // Handle Remember Me for frontend
+        if (rememberMe) {
+          // Save email for 30 days
+          localStorage.setItem('savedEmail', email);
+          localStorage.setItem('rememberMe', 'true');
+        } else {
+          // Clear saved data
+          localStorage.removeItem('savedEmail');
+          localStorage.removeItem('rememberMe');
+        }
+        
+        // Update auth context with user data
+        login(response.data.user, response.data.token);
+        
+        toast.success('✅ Logged in successfully!');
+        navigate(from, { replace: true });
       } else {
-        // Clear saved data
-        localStorage.removeItem('savedEmail');
-        localStorage.removeItem('rememberMe');
+        toast.error(response?.message || 'Login failed');
       }
       
-      // Update auth context
-      login(responseData.user);
-      
-      toast.success('Logged in successfully!');
-      navigate(from, { replace: true });
-      
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       
       // Show appropriate error message
       if (error.response?.status === 401) {
         toast.error('Invalid email or password');
       } else if (error.response?.data?.message) {
         toast.error(error.response.data.message);
+      } else if (error.message === 'Network Error') {
+        toast.error('Network error. Please check your connection.');
       } else {
         toast.error('Login failed. Please try again.');
       }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Demo credentials for testing
+  const fillDemoCredentials = () => {
+    setEmail('test@example.com');
+    setPassword('password123');
+    setRememberMe(true);
   };
 
   return (
@@ -91,7 +116,7 @@ const Login = () => {
       <div className="glass max-w-md w-full p-8 rounded-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-[#d4af37]/20 rounded-full mx-auto mb-4 flex items-center justify-center">
+          <div className="w-20 h-20 bg-gradient-to-br from-[#d4af37]/20 to-[#d4af37]/5 rounded-full mx-auto mb-4 flex items-center justify-center">
             <i className="fas fa-moon text-4xl text-[#d4af37]"></i>
           </div>
           <h1 className="text-3xl font-bold text-[#d4af37] mb-2">Welcome Back</h1>
@@ -109,12 +134,22 @@ const Login = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 bg-white/5 border border-white/10 rounded-lg focus:border-[#d4af37] focus:outline-none transition"
+                className={`w-full pl-12 pr-4 py-3 bg-white/5 border rounded-lg focus:outline-none transition ${
+                  email && !isValidEmail(email) 
+                    ? 'border-red-500 focus:border-red-500' 
+                    : 'border-white/10 focus:border-[#d4af37]'
+                }`}
                 placeholder="Enter your email"
                 disabled={loading}
                 required
               />
+              {email && isValidEmail(email) && (
+                <i className="fas fa-check-circle absolute right-4 top-1/2 -translate-y-1/2 text-green-500"></i>
+              )}
             </div>
+            {email && !isValidEmail(email) && (
+              <p className="text-xs text-red-400 mt-1">Please enter a valid email</p>
+            )}
           </div>
 
           {/* Password Field */}
@@ -134,7 +169,7 @@ const Login = () => {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/50"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/50 transition"
               >
                 <i className={`fas fa-${showPassword ? 'eye-slash' : 'eye'}`}></i>
               </button>
@@ -168,7 +203,7 @@ const Login = () => {
             
             <Link 
               to="/forgot-password" 
-              className="text-sm text-[#d4af37] hover:underline"
+              className="text-sm text-[#d4af37] hover:underline transition"
             >
               Forgot Password?
             </Link>
@@ -178,7 +213,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-[#d4af37] text-[#1a3f54] rounded-lg hover:bg-[#c4a037] transition font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-[#d4af37] to-[#c4a037] text-[#1a3f54] rounded-lg hover:from-[#c4a037] hover:to-[#b4902f] transition font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[#d4af37]/20"
           >
             {loading ? (
               <>
@@ -194,11 +229,23 @@ const Login = () => {
           </button>
         </form>
 
+        {/* Demo Credentials - For Testing */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={fillDemoCredentials}
+            className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg transition text-sm text-white/50 hover:text-white/70"
+          >
+            <i className="fas fa-flask mr-2"></i>
+            Use Demo Account
+          </button>
+        </div>
+
         {/* Register Link */}
         <div className="mt-6 text-center">
           <p className="text-white/50">
             Don't have an account?{' '}
-            <Link to="/register" className="text-[#d4af37] hover:underline font-medium">
+            <Link to="/register" className="text-[#d4af37] hover:underline font-medium transition">
               Sign up
             </Link>
           </p>
@@ -206,10 +253,10 @@ const Login = () => {
 
         {/* Remember Me Info */}
         {rememberMe && (
-          <div className="mt-4 p-3 bg-[#d4af37]/10 rounded-lg text-center">
+          <div className="mt-4 p-3 bg-[#d4af37]/10 rounded-lg text-center animate-pulse">
             <p className="text-xs text-[#d4af37] flex items-center justify-center gap-1">
               <i className="fas fa-info-circle"></i>
-              You'll stay logged in on this device for 30 days
+              You'll stay logged in on this device
             </p>
           </div>
         )}

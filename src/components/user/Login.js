@@ -56,7 +56,7 @@ const Login = () => {
     try {
       setLoading(true);
       
-      // Pass rememberMe to login service (for backend token expiration)
+      // Call login service
       const response = await loginService(email, password);
       
       // Check if login was successful
@@ -64,16 +64,14 @@ const Login = () => {
         
         // Handle Remember Me for frontend
         if (rememberMe) {
-          // Save email for 30 days
           localStorage.setItem('savedEmail', email);
           localStorage.setItem('rememberMe', 'true');
         } else {
-          // Clear saved data
           localStorage.removeItem('savedEmail');
           localStorage.removeItem('rememberMe');
         }
         
-        // Update auth context with user data
+        // Update auth context with user data and token
         login(response.data.user, response.data.token);
         
         toast.success('✅ Logged in successfully!');
@@ -98,13 +96,6 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Demo credentials for testing
-  const fillDemoCredentials = () => {
-    setEmail('test@example.com');
-    setPassword('password123');
-    setRememberMe(true);
   };
 
   return (
@@ -165,6 +156,7 @@ const Login = () => {
                 placeholder="Enter your password"
                 disabled={loading}
                 required
+                minLength="6"
               />
               <button
                 type="button"
@@ -228,18 +220,6 @@ const Login = () => {
             )}
           </button>
         </form>
-
-        {/* Demo Credentials - For Testing */}
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={fillDemoCredentials}
-            className="w-full py-2 bg-white/5 hover:bg-white/10 rounded-lg transition text-sm text-white/50 hover:text-white/70"
-          >
-            <i className="fas fa-flask mr-2"></i>
-            Use Demo Account
-          </button>
-        </div>
 
         {/* Register Link */}
         <div className="mt-6 text-center">

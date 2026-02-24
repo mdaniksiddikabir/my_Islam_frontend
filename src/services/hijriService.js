@@ -99,7 +99,7 @@ class HijriService {
       'Solomon Islands': -1, 'Vanuatu': -1, 'Samoa': -1, 'Tonga': -1,
       
       // China - February 19 start regions
-      'China (Liaoning)': -1,      // Your region
+   /*   'China (Liaoning)': -1,      // Your region
       'China (Beijing)': -1,
       'China (Shanghai)': -1,
       'China (Guangzhou)': -1,
@@ -137,6 +137,7 @@ class HijriService {
       'Chaoyang': -1,
       'Huludao': -1,
       'Huludao Shi':-1
+      */
     };
   }
 

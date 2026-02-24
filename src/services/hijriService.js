@@ -95,7 +95,7 @@ class HijriService {
       'Australia': -1, 'New Zealand': -1, 'Fiji': -1, 'Papua New Guinea': -1,
       'Solomon Islands': -1, 'Vanuatu': -1, 'Samoa': -1, 'Tonga': -1,
       
-      // China regions (most follow February 18 start)
+   /*   // China regions (most follow February 18 start)
       'China (Liaoning)': 0,
       'China (Beijing)': 0,
       'China (Shanghai)': 0,
@@ -143,9 +143,10 @@ class HijriService {
       'Tieling': 0,
       'Chaoyang': 0,
       'Huludao': 0,
+      */
       
       // China default (most regions follow Feb 18 start)
-      'China': 0
+      'China': -1
     };
   }
 

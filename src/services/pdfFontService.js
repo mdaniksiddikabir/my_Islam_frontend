@@ -11,53 +11,49 @@ class PDFFontService {
    */
   async registerBanglaFont() {
     try {
-      // Try to load the font from public folder
-      const fontData = await this.loadFontData('../Fonts/Nikosh.ttf');
+      // Use a CDN font that supports Bangla (no local file needed)
+      const fontUrl = 'https://fonts.gstatic.com/ea/notosansbengali/v2/NotoSansBengali-Regular.ttf';
       
-      if (fontData) {
-        // Register the font with jsPDF
-        const doc = new jsPDF();
-        doc.addFileToVFS('Nikosh.ttf', fontData);
-        doc.addFont('Nikosh.ttf', 'Nikosh', 'normal');
-        this.fontsLoaded = true;
-        this.currentFont = 'Nikosh';
-        console.log('✅ Bangla font loaded successfully');
-      } else {
-        console.warn('⚠️ Bangla font not found, using fallback');
-        this.currentFont = 'helvetica';
-      }
+      const response = await fetch(fontUrl);
+      if (!response.ok) throw new Error('Font not found');
+      
+      const fontArrayBuffer = await response.arrayBuffer();
+      const fontBase64 = this.arrayBufferToBase64(fontArrayBuffer);
+      
+      // Register the font
+      const doc = new jsPDF();
+      doc.addFileToVFS('NotoSansBengali.ttf', fontBase64);
+      doc.addFont('NotoSansBengali.ttf', 'NotoSansBengali', 'normal');
+      
+      this.fontsLoaded = true;
+      this.currentFont = 'NotoSansBengali';
+      console.log('✅ Bangla font loaded successfully');
+      return true;
     } catch (error) {
       console.error('❌ Failed to load Bangla font:', error);
       this.currentFont = 'helvetica';
+      return false;
     }
   }
 
   /**
-   * Load font file as base64
+   * Convert ArrayBuffer to Base64
    */
-  async loadFontData(path) {
-    try {
-      const response = await fetch(path);
-      if (!response.ok) throw new Error('Font not found');
-      
-      const blob = await response.blob();
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-    } catch (error) {
-      console.error('Font load error:', error);
-      return null;
+  arrayBufferToBase64(buffer) {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
     }
+    return btoa(binary);
   }
 
   /**
    * Get current font name
    */
   getFont() {
-    return this.fontsLoaded ? 'Nikosh' : 'helvetica';
+    return this.currentFont;
   }
 
   /**

@@ -4,18 +4,29 @@ export const getPrayerTimes = async (lat, lng, method = 4, date = null) => {
   try {
     const params = { lat, lng, method };
     
-    // ✅ Add date to params if provided
+    // CRITICAL: Add date to params if provided
     if (date) {
       params.date = date;
     }
     
+    console.log(`📡 Fetching times for ${date || 'today'}...`);
+    
     const response = await api.get('/api/prayer/times', { params });
-    return response.data.data;
+    
+    if (response.data && response.data.success && response.data.data) {
+      console.log(`✅ Received times for ${date || 'today'}`);
+      return response.data.data;
+    } else {
+      console.warn(`⚠️ Invalid response for ${date || 'today'}`);
+      return null;
+    }
   } catch (error) {
-    console.error('Error fetching prayer times:', error);
-    throw error;
+    console.error(`❌ Error fetching prayer times for ${date}:`, error);
+    return null; // Return null instead of throwing
   }
 };
+
+// ... rest of your functions
 
 export const getPrayerTimesByCity = async (city, country, method = 4, date = null) => {
   try {

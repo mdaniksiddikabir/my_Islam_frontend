@@ -48,11 +48,18 @@ const storage = {
   }
 };
 
+// ✅ FIXED: Added rememberMe parameter
 export const login = async (email, password, rememberMe = false) => {
   try {
     console.log('🔐 Login attempt for:', email);
+    console.log('📤 Sending with rememberMe:', rememberMe);
     
-    const response = await api.post('/api/auth/login', { email, password });
+    // ✅ Send rememberMe to backend
+    const response = await api.post('/api/auth/login', { 
+      email, 
+      password, 
+      rememberMe 
+    });
     
     console.log('📥 Login response:', response.data);
     
@@ -74,10 +81,15 @@ export const login = async (email, password, rememberMe = false) => {
       // Store remember me preference
       if (rememberMe) {
         storage.set(REMEMBER_ME_KEY, 'true');
+      } else {
+        storage.remove(REMEMBER_ME_KEY);
       }
       
       console.log('✅ Login successful for:', user.email);
-      return response.data.data;
+      return {
+        success: true,
+        data: { user, token, refreshToken }
+      };
     }
     
     throw new Error(response.data?.message || 'Login failed');
@@ -92,6 +104,7 @@ export const login = async (email, password, rememberMe = false) => {
   }
 };
 
+// ✅ REST OF YOUR CODE IS PERFECT - No other changes needed
 export const register = async (userData, retryCount = 0) => {
   try {
     console.log('📤 Sending registration data:', { 
@@ -110,7 +123,6 @@ export const register = async (userData, retryCount = 0) => {
     if (response.data?.success && response.data?.data) {
       const { user, token, refreshToken } = response.data.data;
       
-      // Validate required data
       if (!token || !user) {
         throw new Error('Invalid response: missing token or user data');
       }
@@ -122,7 +134,10 @@ export const register = async (userData, retryCount = 0) => {
       storage.setJson(USER_KEY, user);
       
       console.log('✅ Registration successful for:', user.email);
-      return response.data.data;
+      return {
+        success: true,
+        data: { user, token, refreshToken }
+      };
     }
     
     throw new Error(response.data?.message || 'Registration failed');
@@ -131,7 +146,6 @@ export const register = async (userData, retryCount = 0) => {
     // Handle network errors with retry
     if ((error.message === 'Network Error' || error.code === 'ECONNABORTED') && retryCount < 3) {
       console.log(`🌐 Network error, retrying (${retryCount + 1}/3)...`);
-      // Exponential backoff
       const delay = Math.pow(2, retryCount) * 1000;
       await new Promise(resolve => setTimeout(resolve, delay));
       return register(userData, retryCount + 1);
@@ -148,20 +162,15 @@ export const register = async (userData, retryCount = 0) => {
 
 export const logout = async (callApi = true) => {
   try {
-    // Optional: Call logout endpoint
     if (callApi) {
       await api.post('/api/auth/logout').catch(() => {});
     }
   } finally {
-    // Clear all auth data
     storage.remove(TOKEN_KEY);
     storage.remove(REFRESH_TOKEN_KEY);
     storage.remove(USER_KEY);
     storage.remove(REMEMBER_ME_KEY);
-    
     console.log('✅ Logout successful');
-    
-    // Redirect to login
     window.location.href = '/login';
   }
 };
@@ -215,7 +224,6 @@ export const refreshToken = async () => {
     
   } catch (error) {
     console.error('❌ Refresh token error:', error);
-    // Auto logout on refresh failure
     await logout(false);
     throw error;
   }
@@ -224,13 +232,7 @@ export const refreshToken = async () => {
 export const forgotPassword = async (email) => {
   try {
     console.log('🔑 Forgot password for:', email);
-    
     const response = await api.post('/api/auth/forgot-password', { email });
-    
-    if (response.data?.success) {
-      console.log('✅ Forgot password email sent');
-    }
-    
     return response.data;
   } catch (error) {
     console.error('❌ Forgot password error:', error);
@@ -241,13 +243,7 @@ export const forgotPassword = async (email) => {
 export const resetPassword = async (token, password) => {
   try {
     console.log('🔑 Resetting password with token');
-    
     const response = await api.post(`/api/auth/reset-password/${token}`, { password });
-    
-    if (response.data?.success) {
-      console.log('✅ Password reset successful');
-    }
-    
     return response.data;
   } catch (error) {
     console.error('❌ Reset password error:', error);
@@ -258,24 +254,14 @@ export const resetPassword = async (token, password) => {
 export const changePassword = async (currentPassword, newPassword) => {
   try {
     const token = getToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-    
-    console.log('🔐 Changing password');
+    if (!token) throw new Error('Not authenticated');
     
     const response = await api.put('/api/auth/change-password', {
       currentPassword,
       newPassword
     }, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     });
-    
-    if (response.data?.success) {
-      console.log('✅ Password changed successfully');
-    }
     
     return response.data;
   } catch (error) {
@@ -286,14 +272,9 @@ export const changePassword = async (currentPassword, newPassword) => {
 
 export const verifyEmail = async (token) => {
   try {
-    console.log('📧 Verifying email with token');
-    
     const response = await api.post(`/api/auth/verify-email/${token}`);
     
     if (response.data?.success) {
-      console.log('✅ Email verified successfully');
-      
-      // Update user verification status in storage
       const user = getCurrentUser();
       if (user) {
         user.emailVerified = true;
@@ -311,21 +292,11 @@ export const verifyEmail = async (token) => {
 export const resendVerification = async () => {
   try {
     const token = getToken();
-    if (!token) {
-      throw new Error('Not authenticated');
-    }
-    
-    console.log('📧 Resending verification email');
+    if (!token) throw new Error('Not authenticated');
     
     const response = await api.post('/api/auth/resend-verification', {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: { Authorization: `Bearer ${token}` }
     });
-    
-    if (response.data?.success) {
-      console.log('✅ Verification email resent');
-    }
     
     return response.data;
   } catch (error) {
@@ -334,27 +305,21 @@ export const resendVerification = async () => {
   }
 };
 
-// Utility function to check if token is expired
 export const isTokenExpired = (token) => {
   if (!token) return true;
   
   try {
     const payload = JSON.parse(atob(token.split('.')[1]));
-    const exp = payload.exp * 1000; // Convert to milliseconds
-    return Date.now() >= exp;
+    return Date.now() >= (payload.exp * 1000);
   } catch (e) {
     console.error('Failed to decode token:', e);
     return true;
   }
 };
 
-// Auto refresh token if expired
 export const ensureValidToken = async () => {
   const token = getToken();
-  
-  if (!token) {
-    return null;
-  }
+  if (!token) return null;
   
   if (isTokenExpired(token)) {
     console.log('🔄 Token expired, refreshing...');

@@ -23,9 +23,32 @@ export const RamadanProvider = ({ children }) => {
   const [selectedMethod, setSelectedMethod] = useState(4);
   const [useOffsets, setUseOffsets] = useState(false);
   const [error, setError] = useState(null);
+  const [forceReload, setForceReload] = useState(0);
   
   const dataCache = useRef({});
   const abortControllerRef = useRef(null);
+
+  // Listen for location update events
+  useEffect(() => {
+    const handleLocationUpdate = (event) => {
+      console.log('📍 Location updated event received:', event.detail);
+      // Force a reload by incrementing counter
+      setForceReload(prev => prev + 1);
+      // Clear last location to force reload
+      setLastLocation(null);
+      // Clear cache for this location
+      if (userLocation) {
+        const cacheKey = `${userLocation.lat}_${userLocation.lng}_${selectedMethod}_${useOffsets}`;
+        delete dataCache.current[cacheKey];
+      }
+    };
+
+    window.addEventListener('locationUpdated', handleLocationUpdate);
+    
+    return () => {
+      window.removeEventListener('locationUpdated', handleLocationUpdate);
+    };
+  }, [userLocation, selectedMethod, useOffsets]);
 
   // Load saved data from localStorage on mount
   useEffect(() => {
@@ -87,36 +110,59 @@ export const RamadanProvider = ({ children }) => {
 
   // Check if we need to load data
   useEffect(() => {
-    if (!userLocation) return;
+    if (!userLocation) {
+      console.log('⏳ Waiting for user location...');
+      return;
+    }
+    
+    console.log('📍 User location:', userLocation);
+    console.log('📍 Last location:', lastLocation);
+    console.log('🔄 Force reload counter:', forceReload);
     
     const shouldLoadData = () => {
       // No data at all
-      if (!ramadanData) return true;
+      if (!ramadanData) {
+        console.log('🔄 No data, loading...');
+        return true;
+      }
       
-      // Location changed
-      if (!lastLocation) return true;
+      // No last location
+      if (!lastLocation) {
+        console.log('🔄 No last location, loading...');
+        return true;
+      }
+      
+      // Location changed (check coordinates AND city)
       if (lastLocation.lat !== userLocation.lat || 
           lastLocation.lng !== userLocation.lng ||
-          lastLocation.city !== userLocation.city) { // ✅ Also check city name
+          lastLocation.city !== userLocation.city) {
+        console.log('🔄 Location changed, loading...');
         return true;
       }
       
       // Method or offsets changed
       if (lastLocation.method !== selectedMethod ||
           lastLocation.useOffsets !== useOffsets) {
+        console.log('🔄 Method/offsets changed, loading...');
         return true;
       }
       
+      console.log('✅ Using cached data');
       return false;
     };
     
-    if (shouldLoadData()) {
+    if (shouldLoadData() || forceReload > 0) {
       loadRamadanData();
     }
-  }, [userLocation, selectedMethod, useOffsets]);
+  }, [userLocation, selectedMethod, useOffsets, forceReload]);
 
   const loadRamadanData = useCallback(async () => {
-    if (!userLocation) return;
+    if (!userLocation) {
+      console.log('❌ No user location');
+      return;
+    }
+    
+    console.log('🚀 Loading Ramadan data for:', userLocation);
     
     // Cancel any ongoing request
     if (abortControllerRef.current) {
@@ -135,31 +181,12 @@ export const RamadanProvider = ({ children }) => {
         '📅 Generating Ramadan calendar...'
       );
       
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (prev >= 95) return prev;
-          return prev + 1;
-        });
-      }, 300);
-      
-      // Update messages based on progress
-      const messageInterval = setInterval(() => {
-        setLoadingProgress(prev => {
-          if (prev < 20) setLoadingMessage('Fetching calendar data...');
-          else if (prev < 40) setLoadingMessage('Loading prayer times...');
-          else if (prev < 60) setLoadingMessage('Processing Sehri times...');
-          else if (prev < 80) setLoadingMessage('Processing Iftar times...');
-          else if (prev < 95) setLoadingMessage('Finalizing calendar...');
-          return prev;
-        });
-      }, 500);
-      
       // Generate cache key
       const cacheKey = `${userLocation.lat}_${userLocation.lng}_${selectedMethod}_${useOffsets}`;
       
-      // ✅ Clear cache for this specific location to force fresh data
+      // Clear cache for this specific location to force fresh data
       delete dataCache.current[cacheKey];
+      console.log('🗑️ Cleared cache for:', cacheKey);
       
       // Get complete data from hijriService
       const data = await hijriService.getCompleteRamadanData(
@@ -167,10 +194,7 @@ export const RamadanProvider = ({ children }) => {
         selectedMethod,
         useOffsets,
         (progress) => {
-          // Real progress from service
           setLoadingProgress(progress);
-          
-          // Update message based on progress
           if (progress < 20) setLoadingMessage('Fetching calendar data...');
           else if (progress < 40) setLoadingMessage('Loading prayer times...');
           else if (progress < 60) setLoadingMessage('Processing Sehri times...');
@@ -180,8 +204,7 @@ export const RamadanProvider = ({ children }) => {
         }
       );
       
-      clearInterval(progressInterval);
-      clearInterval(messageInterval);
+      console.log('✅ Data loaded:', data);
       
       setLoadingProgress(100);
       setLoadingMessage('Complete!');
@@ -189,7 +212,6 @@ export const RamadanProvider = ({ children }) => {
       // Store in cache
       dataCache.current[cacheKey] = data;
       
-      // Small delay to show 100% completion
       setTimeout(() => {
         setRamadanData(data);
         setLastLocation({
@@ -208,7 +230,7 @@ export const RamadanProvider = ({ children }) => {
         return;
       }
       
-      console.error('Error loading Ramadan data:', error);
+      console.error('❌ Error loading Ramadan data:', error);
       setError(error.message || 'Failed to load data');
       toast.error('❌ Failed to load data');
       setLoading(false);
@@ -218,28 +240,32 @@ export const RamadanProvider = ({ children }) => {
   }, [userLocation, selectedMethod, useOffsets]);
 
   const updateMethod = (method) => {
+    console.log('🔄 Updating method to:', method);
     setSelectedMethod(method);
   };
 
   const toggleOffsets = () => {
+    console.log('🔄 Toggling offsets to:', !useOffsets);
     setUseOffsets(prev => !prev);
   };
 
   const refreshData = () => {
-    // Clear cache for current location and reload
+    console.log('🔄 Refreshing data...');
     if (userLocation) {
       const cacheKey = `${userLocation.lat}_${userLocation.lng}_${selectedMethod}_${useOffsets}`;
       delete dataCache.current[cacheKey];
-      loadRamadanData();
+      setForceReload(prev => prev + 1);
     }
   };
 
   const clearCache = () => {
+    console.log('🧹 Clearing all cache');
     dataCache.current = {};
     localStorage.removeItem('ramadanData');
     localStorage.removeItem('ramadanMetadata');
     setRamadanData(null);
     setLastLocation(null);
+    setForceReload(prev => prev + 1);
     toast.success('🧹 Cache cleared');
   };
 

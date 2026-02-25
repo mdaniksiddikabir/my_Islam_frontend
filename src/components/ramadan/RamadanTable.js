@@ -34,11 +34,10 @@ const RamadanTable = () => {
   const [searching, setSearching] = useState(false);
   const [showCitySearch, setShowCitySearch] = useState(false);
   const [expandedDay, setExpandedDay] = useState(null);
-  const [filter, setFilter] = useState('all'); // 'all', 'first10', 'second10', 'third10'
+  const [filter, setFilter] = useState('all');
 
   const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   const banglaWeekdays = ['রবিবার', 'সোমবার', 'মঙ্গলবার', 'বুধবার', 'বৃহস্পতিবার', 'শুক্রবার', 'শনিবার'];
-  const banglaMonths = ['জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন', 'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'];
 
   const methodNames = {
     1: 'University of Islamic Sciences, Karachi',
@@ -75,33 +74,60 @@ const RamadanTable = () => {
       toast.error(language === 'bn' ? 'শহরের নাম লিখুন' : 'Please enter a city name');
       return;
     }
+    
     setSearching(true);
     try {
       const results = await citySearchService.searchCities(searchCity);
       setSearchResults(results);
+      
       if (results.length === 0) {
         toast.error(language === 'bn' ? 'কোনো শহর পাওয়া যায়নি' : 'No cities found');
       }
     } catch (error) {
+      console.error('Search error:', error);
       toast.error(language === 'bn' ? 'অনুসন্ধান ব্যর্থ হয়েছে' : 'Search failed');
     } finally {
       setSearching(false);
     }
   };
 
-  const selectCity = (city) => {
-    setShowCitySearch(false);
-    setSearchCity('');
-    setSearchResults([]);
-    updateLocation({
-      lat: city.lat,
-      lng: city.lng,
-      city: city.name,
-      country: city.country
-    });
-    toast.success(
-      language === 'bn' ? `📍 ${city.name} নির্বাচিত হয়েছে` : `📍 ${city.name} selected`
-    );
+  const selectCity = async (city) => {
+    try {
+      setShowCitySearch(false);
+      setSearchCity('');
+      setSearchResults([]);
+      
+      // Show loading toast
+      const toastId = toast.loading(
+        language === 'bn' 
+          ? `📍 ${city.name} এর জন্য ডেটা লোড হচ্ছে...` 
+          : `📍 Loading data for ${city.name}...`
+      );
+      
+      // Update location - this will trigger data reload in RamadanContext
+      await updateLocation({
+        lat: city.lat,
+        lng: city.lng,
+        city: city.name,
+        country: city.country
+      });
+      
+      // Success message
+      toast.success(
+        language === 'bn' 
+          ? `✅ ${city.name} এর জন্য ডেটা আপডেট হয়েছে` 
+          : `✅ Data updated for ${city.name}`,
+        { id: toastId }
+      );
+      
+    } catch (error) {
+      console.error('Error selecting city:', error);
+      toast.error(
+        language === 'bn' 
+          ? '❌ শহর নির্বাচন করতে সমস্যা হয়েছে' 
+          : '❌ Failed to select city'
+      );
+    }
   };
 
   const exportToPDF = () => {
@@ -329,17 +355,6 @@ const RamadanTable = () => {
             </div>
           </div>
 
-          {/* Current Day Indicator */}
-          <div className="mt-4 text-xs text-white/30">
-            {loadingProgress < 100 && (
-              <span>
-                {language === 'bn' 
-                  ? `দিন ${Math.floor(loadingProgress / 100 * 30)}/৩০` 
-                  : `Day ${Math.floor(loadingProgress / 100 * 30)}/30`}
-              </span>
-            )}
-          </div>
-
           {/* Animated Dots */}
           <div className="flex justify-center gap-1 mt-6">
             <motion.div
@@ -414,7 +429,7 @@ const RamadanTable = () => {
         className="flex flex-col items-center justify-center min-h-[60vh] p-4"
       >
         <div className="glass p-8 rounded-2xl max-w-md w-full text-center">
-          <i className="fas fa-calendar-times text-5xl text-amber-500 mb-4"></i>
+          <i className="fas fa-calendar-times text-4xl text-amber-500 mb-3"></i>
           <h2 className="text-xl font-bold text-amber-500 mb-2">
             {language === 'bn' ? 'কোনো তথ্য নেই' : 'No Data Available'}
           </h2>
@@ -674,6 +689,9 @@ const RamadanTable = () => {
                     >
                       <div className="font-bold">{city.name}</div>
                       <div className="text-sm text-white/50">{city.country}</div>
+                      <div className="text-xs text-white/30 mt-1">
+                        {language === 'bn' ? 'লোড করতে ক্লিক করুন' : 'Click to load data'}
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -794,7 +812,7 @@ const RamadanTable = () => {
                 </div>
               </div>
 
-              {/* Expanded Details */}
+              {/* Expanded Details - Removed 24h format */}
               <AnimatePresence>
                 {expandedDay === day.day && (
                   <motion.div
@@ -803,7 +821,7 @@ const RamadanTable = () => {
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-4 pt-4 border-t border-white/10"
                   >
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                       <div className="bg-white/5 p-2 rounded-lg">
                         <div className="text-xs text-white/50">{language === 'bn' ? 'গ্রেগরিয়ান' : 'Gregorian'}</div>
                         <div className="text-sm font-bold">
@@ -817,12 +835,8 @@ const RamadanTable = () => {
                         </div>
                       </div>
                       <div className="bg-white/5 p-2 rounded-lg">
-                        <div className="text-xs text-white/50">{language === 'bn' ? 'সেহরি (২৪ ঘণ্টা)' : 'Sehri (24h)'}</div>
-                        <div className="text-sm font-mono font-bold">{day.sehri24 || '--:--'}</div>
-                      </div>
-                      <div className="bg-white/5 p-2 rounded-lg">
-                        <div className="text-xs text-white/50">{language === 'bn' ? 'ইফতার (২৪ ঘণ্টা)' : 'Iftar (24h)'}</div>
-                        <div className="text-sm font-mono font-bold">{day.iftar24 || '--:--'}</div>
+                        <div className="text-xs text-white/50">{language === 'bn' ? 'রোজার সময়' : 'Fasting Duration'}</div>
+                        <div className="text-sm font-bold text-amber-400">{day.fastingHours}</div>
                       </div>
                     </div>
                     

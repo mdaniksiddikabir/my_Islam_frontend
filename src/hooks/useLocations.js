@@ -53,8 +53,14 @@ export const useLocation = () => {
   };
 
   const updateLocation = (newLocation) => {
+    console.log('📍 Updating location to:', newLocation);
     setLocation(newLocation);
     setError(null);
+    
+    // ✅ Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('locationUpdated', { 
+      detail: newLocation 
+    }));
   };
 
   return {

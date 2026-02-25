@@ -6,11 +6,6 @@ class HijriService {
     // 0 = February 18 start (Saudi Arabia, UAE, Qatar, etc.)
     // -1 = February 19 start (Bangladesh, India, Pakistan, Indonesia, etc.)
     this.countryOffsets = {
-      // =====================================================
-      // GROUP 1: February 18 Start (0 offset)
-      // These countries started Ramadan on Feb 18, 2026
-      // =====================================================
-      
       // Middle East
       'Saudi Arabia': 0, 'UAE': 0, 'United Arab Emirates': 0,
       'Qatar': 0, 'Kuwait': 0, 'Bahrain': 0, 'Oman': 0,
@@ -69,7 +64,6 @@ class HijriService {
       
       // =====================================================
       // GROUP 2: February 19 Start (-1 offset)
-      // These countries started Ramadan on Feb 19, 2026
       // =====================================================
       
       // South Asia
@@ -94,118 +88,52 @@ class HijriService {
       // Oceania
       'Australia': -1, 'New Zealand': -1, 'Fiji': -1, 'Papua New Guinea': -1,
       'Solomon Islands': -1, 'Vanuatu': -1, 'Samoa': -1, 'Tonga': -1,
-      
-   /*   // China regions (most follow February 18 start)
-      'China (Liaoning)': 0,
-      'China (Beijing)': 0,
-      'China (Shanghai)': 0,
-      'China (Tianjin)': 0,
-      'China (Chongqing)': 0,
-      'China (Hebei)': 0,
-      'China (Shanxi)': 0,
-      'China (Inner Mongolia)': 0,
-      'China (Jilin)': 0,
-      'China (Heilongjiang)': 0,
-      'China (Jiangsu)': 0,
-      'China (Zhejiang)': 0,
-      'China (Anhui)': 0,
-      'China (Fujian)': 0,
-      'China (Jiangxi)': 0,
-      'China (Shandong)': 0,
-      'China (Henan)': 0,
-      'China (Hubei)': 0,
-      'China (Hunan)': 0,
-      'China (Guangdong)': 0,
-      'China (Guangxi)': 0,
-      'China (Hainan)': 0,
-      'China (Sichuan)': 0,
-      'China (Guizhou)': 0,
-      'China (Yunnan)': 0,
-      'China (Tibet)': 0,
-      'China (Shaanxi)': 0,
-      'China (Gansu)': 0,
-      'China (Qinghai)': 0,
-      'China (Ningxia)': 0,
-      'China (Xinjiang)': 0,
-      
-      // Specific cities in Liaoning
-      'Shenyang': 0,
-      'Dalian': 0,
-      'Anshan': 0,
-      'Fushun': 0,
-      'Benxi': 0,
-      'Dandong': 0,
-      'Jinzhou': 0,
-      'Yingkou': 0,
-      'Fuxin': 0,
-      'Liaoyang': 0,
-      'Panjin': 0,
-      'Tieling': 0,
-      'Chaoyang': 0,
-      'Huludao': 0,
+      /*
+      // China regions
+      'China (Liaoning)': 0, 'China (Beijing)': 0, 'China (Shanghai)': 0,
+      'Shenyang': 0, 'Dalian': 0, 'Anshan': 0, 'Fushun': 0,
       */
-      
-      // China default (most regions follow Feb 18 start)
+      // China default
       'China': -1
     };
   }
 
   /**
    * Get country-specific offset with fallback
-   * @param {Object} location - User's location with country and city
-   * @returns {number} Offset (-1, 0, etc.)
    */
   getCountryOffset(location) {
-    if (!location) return 0; // Default to Saudi calculation if no location
+    if (!location) return 0;
     
     const country = location.country;
     const city = location.city;
     
-    console.log(`Checking offset for: ${city}, ${country}`);
-    
-    // Try exact city match first (for cities with special offsets)
     if (city) {
-      // Check if city has its own entry
       if (this.countryOffsets[city] !== undefined) {
-        console.log(`Found city match for ${city}: offset ${this.countryOffsets[city]}`);
         return this.countryOffsets[city];
       }
       
-      // Check for country-specific city format (e.g., "China (Beijing)")
       const countryCityKey = `${country} (${city})`;
       if (this.countryOffsets[countryCityKey] !== undefined) {
-        console.log(`Found country-city match: offset ${this.countryOffsets[countryCityKey]}`);
         return this.countryOffsets[countryCityKey];
       }
     }
     
-    // Try country match
     if (this.countryOffsets[country] !== undefined) {
-      console.log(`Found country match for ${country}: offset ${this.countryOffsets[country]}`);
       return this.countryOffsets[country];
     }
     
-    // Try common variations
     const countryVariations = {
-      'UK': 'United Kingdom',
-      'USA': 'United States',
-      'UAE': 'United Arab Emirates',
-      'England': 'United Kingdom',
-      'Scotland': 'United Kingdom',
-      'Wales': 'United Kingdom',
-      'Northern Ireland': 'United Kingdom',
+      'UK': 'United Kingdom', 'USA': 'United States', 'UAE': 'United Arab Emirates',
+      'England': 'United Kingdom', 'Scotland': 'United Kingdom', 'Wales': 'United Kingdom'
     };
     
     if (countryVariations[country]) {
       const mappedCountry = countryVariations[country];
       if (this.countryOffsets[mappedCountry] !== undefined) {
-        console.log(`Found mapped country match: offset ${this.countryOffsets[mappedCountry]}`);
         return this.countryOffsets[mappedCountry];
       }
     }
     
-    // Default to 0 (Saudi calculation) if no match
-    console.log(`No match found for ${country}, using default offset 0`);
     return 0;
   }
 
@@ -227,33 +155,24 @@ class HijriService {
    */
   async getCurrentHijri(location) {
     try {
-      // Get base date from API
-      const response = await api.get('/api/calendar/current-hijri');
-      console.log('API Response:', response.data);
+      const timestamp = new Date().getTime();
+      const response = await api.get(`/api/calendar/current-hijri?_=${timestamp}`);
       
-      // Apply country offset
       const offset = this.getCountryOffset(location);
       
       if (offset !== 0) {
-        console.log(`Applying offset of ${offset} day for ${location?.country}, ${location?.city}`);
-        
-        // Adjust the day based on offset
         let adjustedDay = response.data.data.day + offset;
         let adjustedMonth = response.data.data.month;
         let adjustedYear = response.data.data.year;
         
-        // Handle month boundaries
         if (adjustedDay < 1) {
-          // Previous month
           adjustedMonth -= 1;
           if (adjustedMonth < 1) {
             adjustedMonth = 12;
             adjustedYear -= 1;
           }
-          // Get days in previous month (simplified - assume 30 days)
           adjustedDay = 30 + adjustedDay;
         } else if (adjustedDay > 30) {
-          // Next month
           adjustedDay = adjustedDay - 30;
           adjustedMonth += 1;
           if (adjustedMonth > 12) {
@@ -275,14 +194,10 @@ class HijriService {
   }
 
   /**
-   * Get fallback data with country-specific offset
+   * Get fallback data
    */
   getFallbackData(location) {
     const offset = this.getCountryOffset(location);
-    
-    // For Feb 25, 2026:
-    // offset 0: Day 8 of Ramadan
-    // offset -1: Day 7 of Ramadan
     const day = offset === -1 ? 7 : 8;
     
     return {
@@ -298,51 +213,32 @@ class HijriService {
   }
 
   /**
-   * Generate Ramadan calendar with proper dates and offset support
+   * Generate Ramadan calendar
    */
   async getRamadanCalendar(location) {
     try {
-      // Get current Hijri date with offset
       const hijriData = await this.getCurrentHijri(location);
       const currentDay = hijriData.data.day;
       const hijriYear = hijriData.data.year;
       const offset = this.getCountryOffset(location);
 
-      console.log(`📍 Location: ${location?.city}, ${location?.country}`);
-      console.log(`📅 Current Hijri from API: Day ${hijriData.data.day}, Month ${hijriData.data.month}, Year ${hijriYear}`);
-      console.log(`🔄 Country offset: ${offset}`);
-
-      // Set base Ramadan start date to February 18, 2026
-      const baseStartDate = new Date(2026, 1, 18); // February 18, 2026
-      
-      // Apply offset to start date
-      // offset = 0: Feb 18 start
-      // offset = -1: Feb 19 start (one day later)
+      const baseStartDate = new Date(2026, 1, 18);
       const startDate = new Date(baseStartDate);
       startDate.setDate(baseStartDate.getDate() + Math.abs(offset));
       
-      // Today's actual date (Feb 25, 2026)
-      const today = new Date(2026, 1, 25); // February 25, 2026
+      const today = new Date(2026, 1, 25);
       
-      console.log(`🌙 Base Ramadan start: ${baseStartDate.toDateString()}`);
-      console.log(`🌙 Adjusted start (offset ${offset}): ${startDate.toDateString()}`);
-      console.log(`📆 Today's date: ${today.toDateString()}`);
-      
-      // Calculate current day of Ramadan based on adjusted start date
       const diffTime = Math.abs(today - startDate);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      const calculatedCurrentDay = diffDays + 1; // +1 because day 1 is start date
-      
-      console.log(`✅ Days since Ramadan started: ${diffDays}`);
-      console.log(`✅ Today should be Day ${calculatedCurrentDay} of Ramadan`);
+      const calculatedCurrentDay = diffDays + 1;
 
-      // Generate 30 days starting from adjusted start date
+      const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+      
       const days = [];
       for (let i = 0; i < 30; i++) {
         const currentDate = new Date(startDate);
         currentDate.setDate(startDate.getDate() + i);
         
-        // Format date as YYYY-MM-DD
         const year = currentDate.getFullYear();
         const month = String(currentDate.getMonth() + 1).padStart(2, '0');
         const day = String(currentDate.getDate()).padStart(2, '0');
@@ -363,7 +259,6 @@ class HijriService {
         });
       }
 
-      // Return direct object
       return {
         success: true,
         year: hijriYear,
@@ -382,27 +277,20 @@ class HijriService {
   }
 
   /**
-   * Fallback calendar with offset support
+   * Fallback calendar
    */
   getFallbackCalendar(location) {
     const offset = this.getCountryOffset(location);
     
-    // Base: Ramadan starts Feb 18, 2026
-    const baseStartDate = new Date(2026, 1, 18); // Feb 18, 2026
-    
-    // Apply offset
+    const baseStartDate = new Date(2026, 1, 18);
     const startDate = new Date(baseStartDate);
     startDate.setDate(baseStartDate.getDate() + Math.abs(offset));
     
-    const today = new Date(2026, 1, 25); // Feb 25, 2026
+    const today = new Date(2026, 1, 25);
     
-    // Calculate current day based on adjusted start
     const diffTime = Math.abs(today - startDate);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const currentDay = diffDays + 1;
-    
-    console.log(`📍 FALLBACK: Base start Feb 18, offset ${offset} → actual start ${startDate.toDateString()}`);
-    console.log(`📍 Today (Feb 25) is day ${currentDay} of Ramadan`);
     
     const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     
@@ -444,66 +332,44 @@ class HijriService {
   }
 
   /**
-   * Get prayer times with country-specific offset applied
-   * @param {Object} location - User location with lat/lng
-   * @param {number} method - Calculation method ID
-   * @param {string} dateStr - Date in YYYY-MM-DD format
-   * @param {boolean} useOffsets - Whether to apply country offsets
+   * Get prayer times with cache busting
    */
   async getPrayerTimesWithOffset(location, method, dateStr, useOffsets = false) {
     try {
-      // Fetch base prayer times from API
-      const response = await api.get(`/api/prayer/times?lat=${location.lat}&lng=${location.lng}&method=${method}&date=${dateStr}`);
+      // Add timestamp to prevent caching
+      const timestamp = new Date().getTime();
+      
+      const response = await api.get(`/api/prayer/times?lat=${location.lat}&lng=${location.lng}&method=${method}&date=${dateStr}&_=${timestamp}`);
       
       if (!useOffsets) {
-        return response.data; // Return without offset
+        return response.data;
       }
       
-      // Get country offset
       const offset = this.getCountryOffset(location);
       
       if (offset === 0) {
-        return response.data; // No adjustment needed
+        return response.data;
       }
       
-      // Apply offset to prayer times
-      const prayerData = { ...response.data };
-      
-      if (prayerData?.data?.timings) {
-        // Log the adjustment
-        console.log(`📍 Applying offset ${offset} to prayer times for ${dateStr} in ${location.city}, ${location.country}`);
-        
-        // You can add specific offset adjustments here
-        // For example, some countries might have ± few minutes differences
-        // This is a placeholder for future implementation
-      }
-      
-      return prayerData;
+      return response.data;
       
     } catch (error) {
-      console.error('Error fetching prayer times with offset:', error);
+      console.error('Error fetching prayer times:', error);
       throw error;
     }
   }
 
   /**
-   * Get complete Ramadan calendar with prayer times and progress tracking
-   * @param {Object} location - User location with lat/lng
-   * @param {number} method - Calculation method ID
-   * @param {boolean} useOffsets - Whether to apply country offsets
-   * @param {Function} onProgress - Progress callback (receives percentage 0-100)
+   * Get complete Ramadan data with progress
    */
   async getCompleteRamadanData(location, method = 1, useOffsets = false, onProgress = null) {
     try {
-      // Initial progress
       if (onProgress) onProgress(5);
       
-      // Get base Ramadan calendar
       const calendarData = await this.getRamadanCalendar(location);
       
       if (onProgress) onProgress(15);
       
-      // Get prayer times for each day
       const daysWithTimes = [];
       const totalDays = calendarData.days.length;
       
@@ -511,7 +377,6 @@ class HijriService {
         const day = calendarData.days[i];
         
         try {
-          // Calculate progress: 15% to 95% range
           const progress = 15 + Math.round((i + 1) / totalDays * 80);
           if (onProgress) onProgress(progress);
           
@@ -524,23 +389,10 @@ class HijriService {
           
           let sehriTime = '';
           let iftarTime = '';
-          let hijriDate = '';
-          let hijriDay = day.hijri.day;
-          let hijriMonth = 'Ramadan';
-          let hijriYear = calendarData.year;
           
-          // Extract data from response
           if (prayerResponse?.data?.timings) {
             sehriTime = prayerResponse.data.timings.Fajr || '';
             iftarTime = prayerResponse.data.timings.Maghrib || '';
-          }
-          
-          // Extract Hijri date info
-          if (prayerResponse?.data?.date?.hijri) {
-            hijriDate = prayerResponse.data.date.hijri.date || '';
-            hijriDay = prayerResponse.data.hijri?.day || day.hijri.day;
-            hijriMonth = prayerResponse.data.hijri?.month || 'Ramadan';
-            hijriYear = prayerResponse.data.hijri?.year || calendarData.year;
           }
           
           daysWithTimes.push({
@@ -549,11 +401,7 @@ class HijriService {
             iftarTime,
             sehri12: this.convertTo12Hour(sehriTime),
             iftar12: this.convertTo12Hour(iftarTime),
-            fastingHours: this.calculateFastingHours(sehriTime, iftarTime),
-            hijriDate,
-            hijriDay,
-            hijriMonth,
-            hijriYear
+            fastingHours: this.calculateFastingHours(sehriTime, iftarTime)
           });
           
         } catch (error) {
@@ -564,11 +412,7 @@ class HijriService {
             iftarTime: '',
             sehri12: '--:-- --',
             iftar12: '--:-- --',
-            fastingHours: '--h --m',
-            hijriDate: `${day.hijri.day} Ramadan ${day.hijri.year}`,
-            hijriDay: day.hijri.day,
-            hijriMonth: 'Ramadan',
-            hijriYear: day.hijri.year
+            fastingHours: '--h --m'
           });
         }
         
@@ -576,7 +420,6 @@ class HijriService {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Final progress
       if (onProgress) onProgress(100);
       
       return {
@@ -591,9 +434,7 @@ class HijriService {
   }
 
   /**
-   * Convert 24h time to 12h format with AM/PM
-   * @param {string} time - Time in 24h format (HH:MM)
-   * @returns {string} Time in 12h format with AM/PM
+   * Convert 24h to 12h format
    */
   convertTo12Hour(time) {
     if (!time) return '--:-- --';
@@ -604,10 +445,7 @@ class HijriService {
   }
 
   /**
-   * Calculate fasting hours between Sehri and Iftar
-   * @param {string} sehri - Sehri time (Fajr)
-   * @param {string} iftar - Iftar time (Maghrib)
-   * @returns {string} Fasting duration in format "Xh Ym"
+   * Calculate fasting hours
    */
   calculateFastingHours(sehri, iftar) {
     if (!sehri || !iftar) return '--h --m';
@@ -623,43 +461,6 @@ class HijriService {
     
     return `${hours}h ${minutes}m`;
   }
-
-  /**
-   * Get today's Sehri and Iftar times
-   * @param {Object} location - User location
-   * @param {number} method - Calculation method
-   * @param {boolean} useOffsets - Whether to use offsets
-   */
-  async getTodayTimes(location, method = 1, useOffsets = false) {
-    try {
-      const today = new Date();
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
-      
-      const response = await this.getPrayerTimesWithOffset(location, method, dateStr, useOffsets);
-      
-      if (response?.data?.timings) {
-        return {
-          sehri: response.data.timings.Fajr || '',
-          iftar: response.data.timings.Maghrib || '',
-          sehri12: this.convertTo12Hour(response.data.timings.Fajr),
-          iftar12: this.convertTo12Hour(response.data.timings.Maghrib),
-          date: response.data.date,
-          hijri: response.data.hijri
-        };
-      }
-      
-      return null;
-    } catch (error) {
-      console.error('Error getting today times:', error);
-      return null;
-    }
-  }
 }
-
-// Helper for weekdays (used in fallback)
-const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default new HijriService();

@@ -92,44 +92,39 @@ const RamadanTable = () => {
   };
 
   const selectCity = async (city) => {
-    try {
-      setShowCitySearch(false);
-      setSearchCity('');
-      setSearchResults([]);
-      
-      // Show loading toast
-      const toastId = toast.loading(
-        language === 'bn' 
-          ? `📍 ${city.name} এর জন্য ডেটা লোড হচ্ছে...` 
-          : `📍 Loading data for ${city.name}...`
-      );
-      
-      // Update location - this will trigger data reload in RamadanContext
-      await updateLocation({
-        lat: city.lat,
-        lng: city.lng,
-        city: city.name,
-        country: city.country
-      });
-      
-      // Success message
-      toast.success(
-        language === 'bn' 
-          ? `✅ ${city.name} এর জন্য ডেটা আপডেট হয়েছে` 
-          : `✅ Data updated for ${city.name}`,
-        { id: toastId }
-      );
-      
-    } catch (error) {
-      console.error('Error selecting city:', error);
-      toast.error(
-        language === 'bn' 
-          ? '❌ শহর নির্বাচন করতে সমস্যা হয়েছে' 
-          : '❌ Failed to select city'
-      );
-    }
+  try {
+    setShowCitySearch(false);
+    setSearchCity('');
+    setSearchResults([]);
+    
+    console.log('📍 Selecting city:', city);
+    
+    // Show loading toast
+    const toastId = toast.loading(
+      language === 'bn' 
+        ? `📍 ${city.name} এর জন্য ডেটা লোড হচ্ছে...` 
+        : `📍 Loading data for ${city.name}...`
+     );
+    
+    // Update location - this will trigger the locationUpdated event
+    updateLocation({
+      lat: city.lat,
+      lng: city.lng,
+      city: city.name,
+      country: city.country
+     });
+    
+    // Don't dismiss toast here - it will be dismissed when data loads
+    
+   } catch (error) {
+    console.error('Error selecting city:', error);
+    toast.error(
+      language === 'bn' 
+        ? '❌ শহর নির্বাচন করতে সমস্যা হয়েছে' 
+        : '❌ Failed to select city'
+     );
+   }
   };
-
   const exportToPDF = () => {
     if (!ramadanData?.days) return;
     
